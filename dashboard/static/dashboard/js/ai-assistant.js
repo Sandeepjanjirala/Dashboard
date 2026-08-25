@@ -1,13 +1,11 @@
 /*
  * AI Assistant chat panel.
  *
- * This file only talks to branch_dashboard's own API
- * (POST /api/dashboard/ask-ai/). It never calls the query-engine service
- * directly and contains no AI/query logic of its own -- it just renders
- * whatever answer text the backend relays back.
- *
- * No request is made automatically on page load; the dashboard's existing
- * load flow (dashboard.js) is completely untouched.
+ * This file communicates with branch_dashboard's API (POST /api/dashboard/ask-ai/).
+ * It sends questions and current filter context, and renders the response:
+ * - If structured table data is returned: renders ONLY the structured result table.
+ * - If text-only / error / count response: renders the text message bubble.
+ * Never renders duplicate text alongside the table.
  */
 
 const ASK_AI_URL = "/api/dashboard/ask-ai/";
@@ -28,11 +26,7 @@ $(document).ready(function () {
 });
 
 /*
- * Single shared entry point for asking the AI assistant a question,
- * regardless of whether it came from typing (existing flow) or voice
- * (new flow). This is the exact AJAX call the text flow used before --
- * unchanged, just pulled into a function so voice can call it too
- * instead of duplicating the request logic.
+ * Single shared entry point for asking the AI assistant a question.
  */
 function sendQuestion(question) {
   question = (question || "").trim();
@@ -41,15 +35,10 @@ function sendQuestion(question) {
   appendUserMessage(question);
   setSending(true);
 
-  // Attach the dashboard's current AGM/RI/Branch selection to every
-  // question -- typed or spoken, both paths funnel through this one
-  // function -- so the backend (and, later, filter-aware query-engine
-  // functions) always know what the user is looking at. Falls back to
-  // "All" scope if dashboard.js hasn't loaded for some reason, so a
-  // missing filter context never blocks asking a question.
+  // Attach the dashboard's current AGM/RI/Zone/Branch selection
   const filters = (typeof getDashboardFilterContext === "function")
     ? getDashboardFilterContext()
-    : { agm: "All", ri: "All", branches: ["All"] };
+    : { agm: "All", ri: "All", zone: "All", branches: ["All"] };
 
   $.ajax({
     url: ASK_AI_URL,
@@ -59,18 +48,18 @@ function sendQuestion(question) {
     dataType: "json",
   })
     .done(function (resp) {
-      appendBotMessage(
-        (resp && resp.answer) || "Sorry, I didn't get a usable answer for that.",
-        !(resp && resp.success),
-        resp && resp.data
-      );
+      const answerText = (resp && resp.answer) || "No response received.";
+      const isError = !(resp && resp.success);
+      const data = resp && resp.data;
+
+      appendBotMessage(answerText, isError, data);
     })
     .fail(function (xhr) {
       const msg =
         (xhr.responseJSON && xhr.responseJSON.answer) ||
         (xhr.responseJSON && xhr.responseJSON.error) ||
         "The AI assistant is currently unavailable. Please try again.";
-      appendBotMessage(msg, true);
+      appendBotMessage(msg, true, null);
     })
     .always(function () {
       setSending(false);
@@ -84,21 +73,58 @@ function appendUserMessage(text) {
   scrollToBottom();
 }
 
+/**
+ * Check if the response contains tabular data suitable for rendering as a result table.
+ */
+function hasValidTableData(data) {
+  if (!data) return false;
+  const rows = Array.isArray(data)
+    ? data
+    : data && Array.isArray(data.rows)
+      ? data.rows
+      : null;
+
+  if (!rows || rows.length === 0) return false;
+  if (typeof rows[0] !== "object" || rows[0] === null) return false;
+
+  const keys = Object.keys(rows[0]);
+  // If it's only a single count or single scalar key, text answer is preferred
+  if (rows.length === 1 && keys.length === 1 && (keys[0] === "count" || keys[0] === "metric")) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Render Bot response:
+ * - When structured table data exists: RENDER ONLY THE RESULT TABLE (NO narrative text).
+ * - Otherwise: RENDER THE TEXT BUBBLE.
+ */
 function appendBotMessage(text, isError, data) {
   const $wrap = $('<div class="ai-msg ai-msg-bot' + (isError ? " ai-msg-error" : "") + '"></div>');
-  $wrap.append($('<div class="ai-msg-bubble"></div>').text(text));
 
-  // When the query engine's response includes structured data (a list of
-  // rows -- e.g. one per branch), render it as a real table straight from
-  // that data. If `data` isn't in that shape, this quietly does nothing --
-  // no columns or rows are ever invented client-side.
-  const $table = renderAiDataTable(data);
-  if ($table) $wrap.append($table);
+  if (!isError && hasValidTableData(data)) {
+    // ONLY render the structured result table
+    const $table = renderAiDataTable(data);
+    if ($table) {
+      const $tableCard = $('<div class="ai-table-card"></div>').append($table);
+      $wrap.append($tableCard);
+    } else {
+      $wrap.append($('<div class="ai-msg-bubble"></div>').text(text));
+    }
+  } else {
+    // Render the text response
+    $wrap.append($('<div class="ai-msg-bubble"></div>').text(text));
+  }
 
   $("#ai-messages").append($wrap);
   scrollToBottom();
 }
 
+/**
+ * Professional BI Result Table Renderer
+ */
 function renderAiDataTable(data) {
   const rows = Array.isArray(data)
     ? data
@@ -110,32 +136,160 @@ function renderAiDataTable(data) {
     return null;
   }
 
-  const columns = Object.keys(rows[0]);
+  // Filter out internal / non-display keys if any
+  const rawColumns = Object.keys(rows[0]);
+  const columns = rawColumns.filter(function (col) {
+    return !col.startsWith("_") && col !== "abs_change";
+  });
+
+  if (columns.length === 0) return null;
+
+  const $tableWrapper = $('<div class="ai-table-scroll"></div>');
   const $table = $('<table class="ai-data-table"></table>');
+
+  // Header
   const $headRow = $("<tr></tr>");
   columns.forEach(function (col) {
-    $headRow.append($("<th></th>").text(formatColumnLabel(col)));
+    const alignClass = getColumnAlignment(col, rows);
+    $headRow.append($('<th class="' + alignClass + '"></th>').text(formatColumnHeader(col)));
   });
   $table.append($("<thead></thead>").append($headRow));
 
+  // Body
   const $tbody = $("<tbody></tbody>");
   rows.forEach(function (row) {
     const $tr = $("<tr></tr>");
     columns.forEach(function (col) {
-      const value = row[col];
-      $tr.append($("<td></td>").text(value === null || value === undefined ? "--" : value));
+      const alignClass = getColumnAlignment(col, rows);
+      const formattedVal = formatCellValue(col, row[col]);
+      $tr.append($('<td class="' + alignClass + '"></td>').text(formattedVal));
     });
     $tbody.append($tr);
   });
   $table.append($tbody);
+  $tableWrapper.append($table);
 
-  return $table;
+  return $tableWrapper;
 }
 
-function formatColumnLabel(col) {
+/**
+ * Determine column text alignment (left for names/groups, center for rank, right for numbers)
+ */
+function getColumnAlignment(col, rows) {
+  const key = col.toLowerCase();
+  if (key === "rank") return "text-center";
+  if (key === "branch" || key === "branch_name" || key === "group" || key === "category" || key === "ri_name" || key === "agm_name" || key === "zone") {
+    return "text-left";
+  }
+
+  // Check if first non-null value is number
+  for (let i = 0; i < rows.length; i++) {
+    const val = rows[i][col];
+    if (val !== null && val !== undefined) {
+      if (typeof val === "number" || !isNaN(Number(val))) {
+        return "text-right";
+      }
+      break;
+    }
+  }
+
+  return "text-left";
+}
+
+/**
+ * Format column header nicely
+ */
+function formatColumnHeader(col) {
+  const key = col.toLowerCase();
+  const knownHeaders = {
+    "rank": "Rank",
+    "branch": "Branch",
+    "branch_name": "Branch",
+    "group": "Group",
+    "category": "Category",
+    "dropout_percentage": "Dropout %",
+    "dropout_pct": "Dropout %",
+    "dpp": "Dropout %",
+    "cy-dpp": "CY Dropout %",
+    "ly-dpp": "LY Dropout %",
+    "pp-cy-dpp": "PP Dropout %",
+    "ps-cy-dpp": "PS Dropout %",
+    "hs-cy-dpp": "HS Dropout %",
+    "dropouts": "Dropouts",
+    "cy_dropouts": "CY Dropouts",
+    "dp": "Dropouts",
+    "current_year": "Current Year",
+    "last_year": "Last Year",
+    "change": "Change",
+    "value": "Value",
+    "net_strength": "Net Strength",
+    "ns": "Net Strength",
+    "cy-ns": "CY Net Strength",
+    "ly-ns": "LY Net Strength",
+    "grant_strength": "Grant Strength",
+    "gs": "Grant Strength",
+    "sections": "Sections",
+    "nos": "Sections",
+    "avg-sps": "Avg SPS",
+    "student_teacher_ratio": "STR",
+    "str": "STR",
+    "cy-str": "CY STR",
+    "ly-str": "LY STR",
+    "staff_count": "Staff Count",
+    "sc": "Staff Count",
+    "cy-sc": "CY Staff Count",
+    "ly-sc": "LY Staff Count",
+    "nocr": "Class Rooms",
+    "noor": "Occupied Rooms",
+    "novr": "Empty Rooms",
+    "percentage": "Percentage",
+    "occupancy_pct": "Occupancy %",
+    "vacancy_pct": "Vacancy %",
+  };
+
+  if (knownHeaders[key]) return knownHeaders[key];
+
   return String(col)
-    .replace(/_/g, " ")
+    .replace(/[-_]/g, " ")
     .replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+}
+
+/**
+ * Format cell value based on column type
+ */
+function formatCellValue(col, value) {
+  if (value === null || value === undefined) return "--";
+
+  const key = col.toLowerCase();
+  const num = Number(value);
+
+  if (isNaN(num)) {
+    return String(value);
+  }
+
+  // Rank
+  if (key === "rank") {
+    return String(Math.round(num));
+  }
+
+  // Change (signed delta)
+  if (key === "change" || key.endsWith("_diff") || key === "diff") {
+    const sign = num > 0 ? "+" : "";
+    return sign + num.toFixed(2);
+  }
+
+  // Percentages
+  if (key.includes("percentage") || key.includes("pct") || key.includes("dpp") || key === "percentage") {
+    return num.toFixed(2) + "%";
+  }
+
+  // Integer counts (rooms, sections, dropouts if whole number)
+  if (Number.isInteger(num)) {
+    return num.toLocaleString("en-IN");
+  }
+
+  // Floating point values (ratios, averages)
+  return num.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 function setSending(isSending) {
@@ -145,16 +299,13 @@ function setSending(isSending) {
 
 function scrollToBottom() {
   const $messages = $("#ai-messages");
-  $messages.scrollTop($messages[0].scrollHeight);
+  if ($messages.length) {
+    $messages.scrollTop($messages[0].scrollHeight);
+  }
 }
 
 /* ==========================================================================
- * Voice input (browser Web Speech API only).
- *
- * Purely front-end: converts speech to text, drops it into the existing
- * #ai-question-input field, and submits it through the same sendQuestion()
- * the text flow uses. No audio is ever sent to Django; the query engine
- * and /api/dashboard/ask-ai/ contract are untouched.
+ * Voice input (browser Web Speech API)
  * ========================================================================== */
 
 function initVoiceInput() {
@@ -164,7 +315,7 @@ function initVoiceInput() {
 
   if (!SpeechRecognitionCtor) {
     $micBtn.prop("disabled", true).attr("title", "Voice input is not supported in this browser");
-    setVoiceStatus("Voice input isn't supported in this browser. You can still type your question.");
+    setVoiceStatus("Voice input is not supported in this browser.");
     return;
   }
 
@@ -215,20 +366,13 @@ function initVoiceInput() {
     finalTranscript = "";
 
     if (!question) {
-      // Nothing recognized (e.g. silence, or the user stopped early) --
-      // do not auto-submit an empty question.
       return;
     }
 
-    // Show the raw recognized transcript in the input first, so the user
-    // sees exactly what was heard before any normalization happens.
     $input.val(question);
 
     const selectedLang = $("#ai-lang-select").val() || "en-IN";
     if (selectedLang === "te-IN") {
-      // Telugu (or Telugu+English mixed) speech: normalize to an English
-      // question the existing query engine already understands, then feed
-      // it through the exact same sendQuestion() the text flow uses.
       setVoiceStatus("Translating...");
       translateToEnglish(question)
         .then(function (english) {
@@ -238,9 +382,6 @@ function initVoiceInput() {
           sendQuestion(finalQuestion);
         })
         .catch(function () {
-          // Translation failed -- fall back to the raw transcript rather
-          // than blocking the user; the query engine may still fail on it,
-          // but the flow doesn't get stuck.
           setVoiceStatus("Translation unavailable, sending as recognized.", true);
           sendQuestion(question);
         });
@@ -253,7 +394,6 @@ function initVoiceInput() {
 
   $micBtn.on("click", function () {
     if (isListening) {
-      // Second click while active: stop instead of starting another session.
       recognition.stop();
       return;
     }
@@ -261,9 +401,7 @@ function initVoiceInput() {
     recognition.lang = $("#ai-lang-select").val() || "en-IN";
     try {
       recognition.start();
-    } catch (err) {
-      // start() throws if a session is somehow already active; ignore.
-    }
+    } catch (err) {}
   });
 }
 
@@ -272,24 +410,6 @@ function setVoiceStatus(message, isError) {
   $status.text(message || "").toggleClass("ai-voice-error", !!isError);
 }
 
-/*
- * Language normalization layer.
- *
- * Only called for Telugu (or Telugu+English mixed) voice input. Translates
- * the recognized text to English so the existing query engine -- which
- * only understands English intent/keyword phrasing -- can handle it.
- * This does not touch query logic; it purely converts the question text
- * before it reaches sendQuestion().
- *
- * Uses the free MyMemory Translation API (https://mymemory.translated.net):
- *   - No API key required for normal usage
- *   - CORS-enabled, safe to call directly from the browser
- *   - Anonymous free tier: ~5000 words/day per IP (higher with a free
- *     registered email, paid tiers beyond that)
- *   - Requires internet access from the user's browser
- * If this call fails or the service is unreachable, the caller falls back
- * to sending the raw recognized transcript instead of blocking the user.
- */
 function translateToEnglish(text) {
   return $.ajax({
     url: "https://api.mymemory.translated.net/get",
