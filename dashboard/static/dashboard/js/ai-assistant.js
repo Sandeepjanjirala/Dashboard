@@ -2,10 +2,15 @@
  * AI Assistant chat panel.
  *
  * This file communicates with branch_dashboard's API (POST /api/dashboard/ask-ai/).
- * It sends questions and current filter context, and renders the response:
- * - If structured table data is returned: renders ONLY the structured result table.
- * - If text-only / error / count response: renders the text message bubble.
- * Never renders duplicate text alongside the table.
+ * It sends questions and current filter context, and handles intent-aware responses:
+ *
+ * - dashboard_filter / dashboard_reset → apply filter command to dropdowns
+ *   then refresh the dashboard (no text response for filter commands by default)
+ * - dashboard_filter_and_query → apply filters silently, then show analytical result
+ * - dashboard_query → show analytical result table or text bubble
+ * - clarification_required / unknown → show text message bubble
+ *
+ * Voice and text input both flow through the same sendQuestion() entry point.
  */
 
 const ASK_AI_URL = "/api/dashboard/ask-ai/";
@@ -27,6 +32,7 @@ $(document).ready(function () {
 
 /*
  * Single shared entry point for asking the AI assistant a question.
+ * Called identically by typed input and voice input.
  */
 function sendQuestion(question) {
   question = (question || "").trim();
@@ -48,22 +54,180 @@ function sendQuestion(question) {
     dataType: "json",
   })
     .done(function (resp) {
-      const answerText = (resp && resp.answer) || "No response received.";
-      const isError = !(resp && resp.success);
-      const data = resp && resp.data;
-
-      appendBotMessage(answerText, isError, data);
+      handleAiResponse(resp);
     })
     .fail(function (xhr) {
+      // Try to extract intent-aware error from the body
+      const body = xhr.responseJSON || {};
+      if (body.intent === "unknown") {
+        appendBotMessage(body.answer || "I can't answer that from the current dashboard data.", true, null);
+        return;
+      }
       const msg =
-        (xhr.responseJSON && xhr.responseJSON.answer) ||
-        (xhr.responseJSON && xhr.responseJSON.error) ||
+        body.answer ||
+        body.error ||
         "The AI assistant is currently unavailable. Please try again.";
       appendBotMessage(msg, true, null);
     })
     .always(function () {
       setSending(false);
     });
+}
+
+/*
+ * Route the API response based on intent.
+ */
+function handleAiResponse(resp) {
+  if (!resp) {
+    appendBotMessage("No response received.", true, null);
+    return;
+  }
+
+  const intent = resp.intent || "dashboard_query";
+
+  // ------------------------------------------------------------------
+  // dashboard_reset / dashboard_filter → apply to dropdowns and refresh
+  // ------------------------------------------------------------------
+  if (intent === "dashboard_reset" || intent === "dashboard_filter") {
+    if (resp.command && resp.command.filters) {
+      applyDashboardCommand(resp.command.filters, resp.answer || "Done.");
+    } else {
+      appendBotMessage(resp.answer || "Done.", false, null);
+    }
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // dashboard_filter_and_query → apply filter silently, then show result
+  // ------------------------------------------------------------------
+  if (intent === "dashboard_filter_and_query") {
+    if (resp.command && resp.command.filters) {
+      // Apply the filter change silently (no AI bubble for the filter part)
+      applyDashboardCommand(resp.command.filters, null);
+    }
+    // Then show the analytical result
+    const isError = !resp.success;
+    const answerText = resp.answer || "No response received.";
+    appendBotMessage(answerText, isError, resp.data || null);
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // clarification_required → ask the user a follow-up question
+  // ------------------------------------------------------------------
+  if (intent === "clarification_required") {
+    appendBotMessage(resp.answer || "Could you clarify your request?", false, null);
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // dashboard_query (and unknown, and any unrecognised intent)
+  // ------------------------------------------------------------------
+  const isError = !resp.success;
+  const answerText = resp.answer || "No response received.";
+  appendBotMessage(answerText, isError, resp.data || null);
+}
+
+/*
+ * Apply a filter command from the AI to the actual dashboard dropdowns,
+ * then trigger a cascading reload.
+ *
+ * Respects the full cascade hierarchy:
+ *   AGM changed → reset RI, Zone, Branch → loadFilters → loadDashboard
+ *   RI changed  → reset Zone, Branch → loadFilters → loadDashboard
+ *   Zone changed → reset Branch → loadFilters → loadDashboard
+ *   Branch changed → loadDashboard only
+ *
+ * confirmText: if non-null, shows a confirmation bubble in the AI panel.
+ */
+function applyDashboardCommand(newFilters, confirmText) {
+  if (!newFilters) return;
+
+  const currentAgm  = (typeof getDashboardFilterContext === "function")
+    ? getDashboardFilterContext().agm  : "All";
+  const currentRi   = (typeof getDashboardFilterContext === "function")
+    ? getDashboardFilterContext().ri   : "All";
+  const currentZone = (typeof getDashboardFilterContext === "function")
+    ? getDashboardFilterContext().zone : "All";
+
+  const newAgm    = newFilters.agm    || "All";
+  const newRi     = newFilters.ri     || "All";
+  const newZone   = newFilters.zone   || "All";
+  const newBranches = newFilters.branches || ["All"];
+  const newBranch = (Array.isArray(newBranches) && newBranches.length > 0)
+    ? newBranches[0]
+    : "All";
+
+  // Determine the highest-changed level so we know how far to cascade.
+  const agmChanged    = newAgm  !== currentAgm;
+  const riChanged     = newRi   !== currentRi;
+  const zoneChanged   = newZone !== currentZone;
+
+  // Programmatically set the select values.
+  // These calls do NOT fire the jQuery .on("change") handlers (which call
+  // loadFilters/loadDashboard again), because we use .val() not .trigger().
+  // We will call loadFilters/loadDashboard ourselves below.
+  setSelectValue("#agm-select",    newAgm);
+  setSelectValue("#ri-select",     agmChanged  ? "All" : newRi);
+  setSelectValue("#zone-select",   (agmChanged || riChanged) ? "All" : newZone);
+  setSelectValue("#branch-select", (agmChanged || riChanged || zoneChanged) ? "All" : newBranch);
+
+  // Determine cascading reload options.
+  const resetRi     = agmChanged;
+  const resetZone   = agmChanged || riChanged;
+  const resetBranch = agmChanged || riChanged || zoneChanged;
+
+  // After updating the select values, show confirmation and reload.
+  const reloadAgm  = newAgm  !== "All" ? newAgm  : "";
+  const reloadRi   = (!agmChanged && newRi   !== "All") ? newRi   : "";
+  const reloadZone = (!agmChanged && !riChanged && newZone !== "All") ? newZone : "";
+
+  // Use the existing loadFilters / loadDashboard from dashboard.js.
+  if (typeof loadFilters === "function") {
+    loadFilters(newAgm, resetRi ? "All" : newRi, resetZone ? "All" : newZone, {
+      resetRi:     resetRi,
+      resetZone:   resetZone,
+      resetBranch: resetBranch,
+    }).done(function () {
+      // After dropdown options are refreshed, set the final branch value
+      // (the list may have changed after the filter cascade).
+      if (!resetBranch) {
+        setSelectValue("#branch-select", newBranch);
+      }
+      if (typeof loadDashboard === "function") {
+        loadDashboard();
+      }
+    });
+  } else if (typeof loadDashboard === "function") {
+    loadDashboard();
+  }
+
+  // Show confirmation bubble (after a short tick so the dashboard starts loading first).
+  if (confirmText) {
+    setTimeout(function () {
+      appendBotMessage(confirmText, false, null);
+    }, 80);
+  }
+}
+
+/*
+ * Safely set a <select> element's value, but only if that option actually
+ * exists in the dropdown.  Falls back to "All" if not found.
+ */
+function setSelectValue(selector, value) {
+  const $sel = $(selector);
+  if (!$sel.length) return;
+  const target = (value && value !== "") ? value : "All";
+  // If the option exists, set it; otherwise fall back to "All".
+  if ($sel.find('option[value="' + cssEscapeAI(target) + '"]').length) {
+    $sel.val(target);
+  } else {
+    $sel.val("All");
+  }
+}
+
+function cssEscapeAI(value) {
+  return String(value).replace(/(["\\])/g, "\\$1");
 }
 
 function appendUserMessage(text) {

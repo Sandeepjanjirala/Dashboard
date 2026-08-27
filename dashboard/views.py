@@ -90,36 +90,158 @@ def dashboard_view(request):
     return Response(payload)
 
 
-@api_view(["POST"])
-def ask_ai_view(request):
-    """
-    POST /api/dashboard/ask-ai/
-    Body: {"question": "..."}
+# ---------------------------------------------------------------------------
+# AI Assistant helpers
+# ---------------------------------------------------------------------------
 
-    Forwards the question, server-to-server, to the independent
-    branch_query_engine_v2 service and relays its response back to the
-    AI Assistant chat UI. No AI/query logic runs in branch_dashboard --
-    this view is a thin pass-through around dashboard.services.query_engine_client.
-    """
-    query = AskAiRequestSerializer(data=request.data)
-    query.is_valid(raise_exception=True)
-    question = query.validated_data["question"]
-
-    # `filters` is only present in validated_data when the caller actually
-    # sent a "filters" object (nested serializers don't materialize a
-    # default when their key is absent). Normalize to the same "All" /
-    # empty-list defaults either way so query_engine_client always gets a
-    # complete, predictable dict.
-    filters = query.validated_data.get("filters") or {}
-    filter_context = {
+def _build_filter_context(filters: dict) -> dict:
+    """Normalise a raw filters dict into a complete, predictable context."""
+    return {
         "agm": filters.get("agm") or "All",
         "ri": filters.get("ri") or "All",
         "zone": filters.get("zone") or "All",
         "branches": filters.get("branches") or ["All"],
     }
 
+
+def _describe_filter_change(new_filters: dict) -> str:
+    """Build a human-readable confirmation sentence for a filter change."""
+    parts = []
+    if new_filters.get("agm") and new_filters["agm"] != "All":
+        parts.append(f"AGM: {new_filters['agm']}")
+    if new_filters.get("ri") and new_filters["ri"] != "All":
+        parts.append(f"RI: {new_filters['ri']}")
+    if new_filters.get("zone") and new_filters["zone"] != "All":
+        parts.append(f"Zone: {new_filters['zone']}")
+    branches = [b for b in (new_filters.get("branches") or []) if b != "All"]
+    if branches:
+        parts.append("Branch: " + ", ".join(branches))
+    if not parts:
+        return "Done. Showing all data."
+    return "Done. Dashboard filtered to: " + " | ".join(parts) + "."
+
+
+@api_view(["POST"])
+def ask_ai_view(request):
+    """
+    POST /api/dashboard/ask-ai/
+    Body: {"question": "...", "filters": {...}}
+
+    Extended flow:
+    1. Run the rule-based IntentExtractor to classify the question.
+    2. If dashboard_filter / dashboard_reset: return a structured command
+       response so the JS can update the dropdowns without calling the
+       query engine.
+    3. If dashboard_query: forward to query_engine_client.ask() as before.
+    4. If dashboard_filter_and_query (hybrid): return the filter command
+       AND the query engine result together.
+    5. If clarification_required / unknown: return the error message.
+
+    All existing callers that only check `answer`, `data`, and `function`
+    continue to work unchanged -- the new `intent` and `command` keys are
+    additive.
+    """
+    query = AskAiRequestSerializer(data=request.data)
+    query.is_valid(raise_exception=True)
+    question = query.validated_data["question"]
+
+    # Normalise current dashboard filter context (sent by the frontend).
+    raw_filters = query.validated_data.get("filters") or {}
+    filter_context = _build_filter_context(raw_filters)
+
+    # ------------------------------------------------------------------
+    # Step 1: classify intent
+    # ------------------------------------------------------------------
+    intent_result = None
     try:
-        result = query_engine_client.ask(question, filters=filter_context)
+        from dashboard.services.intent_extractor import extract_intent
+
+        all_options = agg.get_filter_options()
+        intent_result = extract_intent(
+            question=question,
+            agms=all_options["agms"],
+            ris=all_options["ris"],
+            zones=all_options["zones"],
+            branches=all_options["branches"],
+        )
+    except ExcelDataError as exc:
+        logger.exception("Excel data error during intent extraction")
+    except Exception as exc:
+        logger.exception("Unexpected error during intent extraction: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Step 2a: RESET
+    # ------------------------------------------------------------------
+    if intent_result and intent_result.intent == "dashboard_reset":
+        return Response({
+            "success": True,
+            "intent": "dashboard_reset",
+            "command": {"filters": intent_result.filters},
+            "answer": "Filters cleared. Showing all data.",
+            "data": None,
+            "function": None,
+        })
+
+    # ------------------------------------------------------------------
+    # Step 2b: Clarification required
+    # ------------------------------------------------------------------
+    if intent_result and intent_result.intent == "clarification_required":
+        return Response({
+            "success": True,
+            "intent": "clarification_required",
+            "command": None,
+            "answer": intent_result.error,
+            "data": None,
+            "function": None,
+        })
+
+    # ------------------------------------------------------------------
+    # Step 2c: Unknown / unsupported
+    # ------------------------------------------------------------------
+    if intent_result and intent_result.intent == "unknown":
+        return Response({
+            "success": False,
+            "intent": "unknown",
+            "command": None,
+            "answer": (
+                intent_result.error
+                or "I can't answer that from the current dashboard data."
+            ),
+            "data": None,
+            "function": None,
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # ------------------------------------------------------------------
+    # Step 2d: Filter-only (no analytical query needed)
+    # ------------------------------------------------------------------
+    if intent_result and intent_result.intent == "dashboard_filter":
+        answer = _describe_filter_change(intent_result.filters)
+        return Response({
+            "success": True,
+            "intent": "dashboard_filter",
+            "command": {"filters": intent_result.filters},
+            "answer": answer,
+            "data": None,
+            "function": None,
+        })
+
+    # ------------------------------------------------------------------
+    # Step 2e: Hybrid (filter + query) or pure analytical query
+    # ------------------------------------------------------------------
+    # For hybrid intent, merge the AI-detected filters into the context
+    # so the query engine answers scoped to the new selection.
+    if intent_result and intent_result.intent == "dashboard_filter_and_query":
+        effective_context = _build_filter_context(intent_result.filters)
+        filter_cmd = {"filters": intent_result.filters}
+        intent_label = "dashboard_filter_and_query"
+    else:
+        # dashboard_query or intent_result is None (fallback to query engine)
+        effective_context = filter_context
+        filter_cmd = None
+        intent_label = "dashboard_query"
+
+    try:
+        result = query_engine_client.ask(question, filters=effective_context)
     except query_engine_client.QueryEngineError as exc:
         logger.warning("Query engine call failed: %s", exc)
         return Response(
@@ -127,7 +249,9 @@ def ask_ai_view(request):
             status=status.HTTP_502_BAD_GATEWAY,
         )
 
-    # Relay the query engine's own success/failure status verbatim so the
-    # chat UI can show its actual answer text either way.
     http_status = status.HTTP_200_OK if result.get("success") else status.HTTP_400_BAD_REQUEST
-    return Response(result, status=http_status)
+    return Response({
+        **result,
+        "intent": intent_label,
+        "command": filter_cmd,
+    }, status=http_status)

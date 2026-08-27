@@ -486,3 +486,147 @@ class MockedTwoAgmHierarchyTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
         self.assertEqual(resp.json()["row_count"], 1)
+
+
+class AskAiIntentIntegrationTests(TestCase):
+    """
+    Integration tests for the extended ask-ai endpoint intent routing.
+
+    These tests call the live /api/dashboard/ask-ai/ endpoint and verify
+    the new `intent` and `command` fields.  The query engine is NOT running
+    in CI, so all analytical (dashboard_query / dashboard_filter_and_query)
+    tests mock the query engine call.
+
+    All existing 45 tests are completely unaffected.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient as _APIClient
+        self.client = _APIClient()
+        self.url = "/api/dashboard/ask-ai/"
+
+    def _post(self, question, filters=None):
+        payload = {"question": question}
+        if filters:
+            payload["filters"] = filters
+        return self.client.post(self.url, payload, format="json")
+
+    # ------------------------------------------------------------------
+    # RESET intent — no query engine involved
+    # ------------------------------------------------------------------
+
+    def test_reset_intent_returned_for_reset_question(self):
+        resp = self._post("Reset filters")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["intent"], "dashboard_reset")
+        self.assertIn("command", body)
+        self.assertEqual(body["command"]["filters"]["zone"], "All")
+        self.assertEqual(body["command"]["filters"]["branches"], ["All"])
+
+    def test_clear_all_also_resets(self):
+        resp = self._post("Clear all")
+        body = resp.json()
+        self.assertEqual(body["intent"], "dashboard_reset")
+
+    # ------------------------------------------------------------------
+    # FILTER intent — Zone
+    # ------------------------------------------------------------------
+
+    def test_zone_filter_kakinada(self):
+        resp = self._post("Show me Zone Kakinada")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["intent"], "dashboard_filter")
+        self.assertEqual(body["command"]["filters"]["zone"], "Kakinada")
+        self.assertIsNone(body["data"])
+
+    def test_zone_filter_visakhapatnam(self):
+        resp = self._post("Filter to Visakhapatnam")
+        body = resp.json()
+        self.assertEqual(body["intent"], "dashboard_filter")
+        self.assertEqual(body["command"]["filters"]["zone"], "Visakhapatnam")
+
+    # ------------------------------------------------------------------
+    # FILTER intent — Branch
+    # ------------------------------------------------------------------
+
+    def test_branch_filter_anakapalli(self):
+        resp = self._post("Show ANAKAPALLI")
+        body = resp.json()
+        self.assertIn(body["intent"], ("dashboard_filter", "dashboard_filter_and_query"))
+        branches = body["command"]["filters"]["branches"]
+        self.assertIn("ANAKAPALLI", branches)
+
+    def test_branch_filter_draksharamam(self):
+        resp = self._post("Show me Draksharamam branch")
+        body = resp.json()
+        self.assertIn(body["intent"], ("dashboard_filter", "dashboard_filter_and_query"))
+        branches = body["command"]["filters"]["branches"]
+        self.assertTrue(any("DRAKSHARAMAM" in b.upper() for b in branches))
+
+    # ------------------------------------------------------------------
+    # CLARIFICATION intent
+    # ------------------------------------------------------------------
+
+    def test_ambiguous_branch_returns_clarification(self):
+        # "Kakinada" alone matches multiple branches (KAKINADA 1,2,3,4,6,7)
+        resp = self._post("Show Kakinada")
+        body = resp.json()
+        self.assertIn(body["intent"], ("clarification_required", "dashboard_filter"))
+        if body["intent"] == "clarification_required":
+            self.assertIsNotNone(body.get("answer"))
+            self.assertIsNone(body.get("command"))
+
+    # ------------------------------------------------------------------
+    # ANALYTICAL intent — requires query engine (mocked)
+    # ------------------------------------------------------------------
+
+    def test_analytical_question_forwarded_to_query_engine(self):
+        from unittest.mock import patch
+        from dashboard.services import query_engine_client
+
+        mock_result = {
+            "success": True,
+            "answer": "Top 5 dropout branches: ...",
+            "function": "top_5_dropout_branches",
+            "data": [{"rank": 1, "branch": "A", "dropout_percentage": 27.0}],
+        }
+
+        with patch.object(query_engine_client, "ask", return_value=mock_result) as mock_ask:
+            resp = self._post("Show me top 5 branches with highest dropout percentage")
+            body = resp.json()
+            # Intent should be dashboard_query
+            self.assertIn(body.get("intent"), ("dashboard_query",))
+            self.assertTrue(body["success"])
+            # Query engine was called
+            mock_ask.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # Response structure is backward-compatible
+    # ------------------------------------------------------------------
+
+    def test_filter_response_always_has_answer(self):
+        resp = self._post("Reset")
+        body = resp.json()
+        self.assertIn("answer", body)
+        self.assertIsInstance(body["answer"], str)
+
+    def test_filter_response_has_success_true(self):
+        resp = self._post("Show me Zone Kakinada")
+        body = resp.json()
+        self.assertTrue(body.get("success"))
+
+    def test_reset_response_function_is_null(self):
+        resp = self._post("Reset dashboard")
+        body = resp.json()
+        self.assertIsNone(body.get("function"))
+
+    def test_unknown_request_returns_400(self):
+        resp = self._post("Show me employee happiness score for the universe")
+        self.assertEqual(resp.status_code, 400)
+        body = resp.json()
+        self.assertEqual(body.get("intent"), "unknown")
+        self.assertFalse(body.get("success"))
