@@ -25,10 +25,13 @@ def dashboard_page(request):
     return render(request, "dashboard/index.html")
 
 
+from dashboard.services import fee_due_service
+
+
 @api_view(["GET"])
 def filters_view(request):
     """
-    GET /api/dashboard/filters/?agm=&ri=
+    GET /api/dashboard/filters/?agm=&ri=&zone=&dataset=
 
     Returns the AGM / RI / Branch options available for the current
     (partial) selection, so the frontend can populate cascading dropdowns.
@@ -38,9 +41,10 @@ def filters_view(request):
     agm = query.validated_data.get("agm", "")
     ri = query.validated_data.get("ri", "")
     zone = query.validated_data.get("zone", "")
+    dataset_id = query.validated_data.get("dataset", "branch_analytics")
 
     try:
-        options = agg.get_filter_options(agm=agm, ri=ri, zone=zone)
+        options = agg.get_filter_options(agm=agm, ri=ri, zone=zone, dataset_id=dataset_id)
     except agg.InvalidFilterError as exc:
         return Response(
             {"success": False, "error": str(exc)},
@@ -61,10 +65,8 @@ def dashboard_view(request):
     """
     GET /api/dashboard/?agm=&ri=&branch=
 
-    Returns the full dashboard payload (KPIs, dropout analysis, staff
-    analysis, room analysis, RI-wise and branch-wise breakdowns) for the
-    given filter selection. Any of the three params may be omitted or set
-    to "All".
+    Returns the full dashboard payload for Main Report (Dropouts & Staff Ratio)
+    for the given filter selection.
     """
     query = DashboardFilterQuerySerializer(data=request.query_params)
     query.is_valid(raise_exception=True)
@@ -88,6 +90,74 @@ def dashboard_view(request):
         )
 
     return Response(payload)
+
+
+@api_view(["GET"])
+def fee_due_dashboard_view(request):
+    """
+    GET /api/dashboard/fee-due/?agm=&ri=&zone=&branch=
+
+    Returns the full dashboard payload for Fee Due Analysis Dashboard
+    (8 KPIs, 6 charts, breakdowns, key insights) for the given filter selection.
+    """
+    query = DashboardFilterQuerySerializer(data=request.query_params)
+    query.is_valid(raise_exception=True)
+    agm = query.validated_data.get("agm", "")
+    ri = query.validated_data.get("ri", "")
+    zone = query.validated_data.get("zone", "")
+    branch = query.validated_data.get("branch", "")
+
+    try:
+        payload = fee_due_service.build_fee_due_dashboard_response(agm=agm, ri=ri, zone=zone, branch=branch)
+    except agg.InvalidFilterError as exc:
+        return Response(
+            {"success": False, "error": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except ExcelDataError as exc:
+        logger.exception("Excel data error while building Fee Due dashboard")
+        return Response(
+            {"success": False, "error": f"Data source error: {exc}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return Response(payload)
+
+
+from dashboard.services import revenue_salary_service
+
+
+@api_view(["GET"])
+def revenue_salary_dashboard_view(request):
+    """
+    GET /api/dashboard/revenue-vs-salary/?agm=&ri=&zone=&branch=
+
+    Returns the full dashboard payload for Revenue vs Salary Analysis Dashboard
+    (KPIs, segment breakdowns, top branch rankings, chart metrics) for the given filter selection.
+    """
+    query = DashboardFilterQuerySerializer(data=request.query_params)
+    query.is_valid(raise_exception=True)
+    agm = query.validated_data.get("agm", "")
+    ri = query.validated_data.get("ri", "")
+    zone = query.validated_data.get("zone", "")
+    branch = query.validated_data.get("branch", "")
+
+    try:
+        payload = revenue_salary_service.build_revenue_salary_dashboard_response(agm=agm, ri=ri, zone=zone, branch=branch)
+    except agg.InvalidFilterError as exc:
+        return Response(
+            {"success": False, "error": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except ExcelDataError as exc:
+        logger.exception("Excel data error while building Revenue vs Salary dashboard")
+        return Response(
+            {"success": False, "error": f"Data source error: {exc}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return Response(payload)
+
 
 
 # ---------------------------------------------------------------------------

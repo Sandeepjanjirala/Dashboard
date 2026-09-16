@@ -16,6 +16,8 @@
 const ASK_AI_URL = "/api/dashboard/ask-ai/";
 
 $(document).ready(function () {
+  initResizer();
+
   $("#ai-input-row").on("submit", function (e) {
     e.preventDefault();
 
@@ -23,12 +25,47 @@ $(document).ready(function () {
     const question = $input.val().trim();
     if (!question) return;
 
-    $input.val("");
+    $input.val("").blur();
     sendQuestion(question);
   });
 
   initVoiceInput();
 });
+
+function initResizer() {
+  const resizer = document.getElementById('resizer');
+  const aiPanel = document.getElementById('ai-panel');
+  let isDragging = false;
+
+  if (resizer && aiPanel) {
+    resizer.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      resizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const windowWidth = window.innerWidth;
+      let newWidth = windowWidth - e.clientX;
+      if (newWidth < 250) newWidth = 250;
+      const maxAllowed = Math.max(300, windowWidth - 60);
+      if (newWidth > maxAllowed) newWidth = maxAllowed;
+      aiPanel.style.width = `${newWidth}px`;
+      document.documentElement.style.setProperty('--ai-panel-w', `${newWidth}px`);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        resizer.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    });
+  }
+}
 
 /*
  * Single shared entry point for asking the AI assistant a question.
@@ -234,7 +271,7 @@ function appendUserMessage(text) {
   const $wrap = $('<div class="ai-msg ai-msg-user"></div>');
   $wrap.append($('<div class="ai-msg-bubble"></div>').text(text));
   $("#ai-messages").append($wrap);
-  scrollToBottom();
+  scrollToMessageStart($wrap);
 }
 
 /**
@@ -261,29 +298,26 @@ function hasValidTableData(data) {
 }
 
 /**
- * Render Bot response:
- * - When structured table data exists: RENDER ONLY THE RESULT TABLE (NO narrative text).
- * - Otherwise: RENDER THE TEXT BUBBLE.
+ * Render Bot response using full 5-Layer Markdown structure:
+ * - Direct Answer, Key Metrics, Key Findings, Attention Areas, Evidence Table
  */
 function appendBotMessage(text, isError, data) {
   const $wrap = $('<div class="ai-msg ai-msg-bot' + (isError ? " ai-msg-error" : "") + '"></div>');
+  const $bubble = $('<div class="ai-msg-bubble markdown-body"></div>');
 
-  if (!isError && hasValidTableData(data)) {
-    // ONLY render the structured result table
-    const $table = renderAiDataTable(data);
-    if ($table) {
-      const $tableCard = $('<div class="ai-table-card"></div>').append($table);
-      $wrap.append($tableCard);
+  if (!isError && text) {
+    if (typeof marked !== "undefined" && typeof marked.parse === "function") {
+      $bubble.html(marked.parse(text));
     } else {
-      $wrap.append($('<div class="ai-msg-bubble"></div>').text(text));
+      $bubble.text(text);
     }
   } else {
-    // Render the text response
-    $wrap.append($('<div class="ai-msg-bubble"></div>').text(text));
+    $bubble.text(text || "No response received.");
   }
 
+  $wrap.append($bubble);
   $("#ai-messages").append($wrap);
-  scrollToBottom();
+  scrollToMessageStart($wrap);
 }
 
 /**
@@ -461,11 +495,23 @@ function setSending(isSending) {
   $("#ai-question-input").prop("disabled", isSending);
 }
 
-function scrollToBottom() {
+function scrollToMessageStart($elem) {
   const $messages = $("#ai-messages");
-  if ($messages.length) {
-    $messages.scrollTop($messages[0].scrollHeight);
+  if (!$messages.length || !$elem || !$elem.length) return;
+
+  function doScroll() {
+    const container = $messages[0];
+    const elemNode = $elem[0];
+    if (!container || !elemNode) return;
+
+    const targetTop = Math.max(0, elemNode.offsetTop - 10);
+    container.scrollTop = targetTop;
   }
+
+  doScroll();
+  requestAnimationFrame(doScroll);
+  setTimeout(doScroll, 50);
+  setTimeout(doScroll, 200);
 }
 
 /* ==========================================================================

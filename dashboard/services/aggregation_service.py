@@ -27,17 +27,12 @@ def is_all(value) -> bool:
     return value is None or str(value).strip().lower() in ALL_TOKENS
 
 
-def get_filter_options(agm=None, ri=None, zone=None):
+def get_filter_options(agm=None, ri=None, zone=None, dataset_id="branch_analytics"):
     """
     Return the AGM / RI / Zone / Branch options available given the current
     (partial) selection, for cascading dropdowns.
-
-    - agms: always the full list (top of the hierarchy).
-    - ris: RIs available under `agm` (or all RIs if agm is All/None).
-    - zones: zones available under `agm` + `ri`.
-    - branches: branches available under `agm` + `ri` + `zone`.
     """
-    df = excel_service.get_dataframe()
+    df = excel_service.get_dataframe(dataset_id=dataset_id)
 
     agms = sorted(df[cm.COL_AGM].unique().tolist())
 
@@ -66,44 +61,12 @@ def get_filter_options(agm=None, ri=None, zone=None):
     return {"agms": agms, "ris": ris, "zones": zones, "branches": branches}
 
 
-def get_filtered_dataframe(agm=None, ri=None, zone=None, branch=None) -> pd.DataFrame:
+def get_filtered_dataframe(agm=None, ri=None, zone=None, branch=None, dataset_id="branch_analytics") -> pd.DataFrame:
     """
     Apply the AGM -> RI -> Zone -> Branch hierarchy filter, strictly
-    progressively:
-
-        ALL DATA
-           |
-           v
-        AGM validation (against the full dataset)
-           |
-           v
-        AGM filtering
-           |
-           v
-        RI validation (against the AGM-filtered dataset ONLY)
-           |
-           v
-        RI filtering
-           |
-           v
-        Zone validation (against the AGM+RI-filtered dataset ONLY)
-           |
-           v
-        Zone filtering
-           |
-           v
-        Branch validation (against the AGM+RI+Zone-filtered dataset ONLY)
-           |
-           v
-        Branch filtering
-
-    Each level is validated against the DataFrame already narrowed by the
-    level(s) above it -- never against the global dataset. A value that
-    exists somewhere in the workbook but not inside the current scope
-    raises InvalidFilterError rather than silently filtering to an empty
-    result.
+    progressively on the specified dataset DataFrame.
     """
-    df = excel_service.get_dataframe()
+    df = excel_service.get_dataframe(dataset_id=dataset_id)
 
     df = _validate_and_filter(df, cm.COL_AGM, agm, "agm")
     df = _validate_and_filter(df, cm.COL_RI, ri, "ri")
@@ -111,6 +74,7 @@ def get_filtered_dataframe(agm=None, ri=None, zone=None, branch=None) -> pd.Data
     df = _validate_and_filter(df, cm.COL_BRANCH, branch, "branch")
 
     return df
+
 
 
 def _validate_and_filter(df: pd.DataFrame, column: str, value, field_name: str) -> pd.DataFrame:

@@ -13,6 +13,8 @@ class DashboardFilterQuerySerializer(serializers.Serializer):
     ri = serializers.CharField(required=False, allow_blank=True, default="")
     zone = serializers.CharField(required=False, allow_blank=True, default="")
     branch = serializers.CharField(required=False, allow_blank=True, default="")
+    dataset = serializers.CharField(required=False, allow_blank=True, default="branch_analytics")
+
 
 
 class AskAiFilterContextSerializer(serializers.Serializer):

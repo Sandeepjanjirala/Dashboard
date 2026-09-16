@@ -50,6 +50,7 @@ _FILTER_TRIGGER_PHRASES = (
 
 # Phrases that strongly imply a pure analytical / data question.
 _ANALYTICAL_TRIGGER_PHRASES = (
+    'statistics', 'statistic', 'stats', 'analyze', 'analysis', 'review', 'performance', 'health',
     'top', 'bottom', 'highest', 'lowest', 'best', 'worst', 'how many',
     'which', 'what is', 'what are', 'compare', 'comparison', 'rank',
     'ranking', 'average', 'total', 'sum', 'percentage', 'dropout',
@@ -57,14 +58,17 @@ _ANALYTICAL_TRIGGER_PHRASES = (
     'year over year', 'yoy', 'cy vs ly', 'trend', 'improved', 'declined',
     'increased', 'decreased', 'changed', 'threshold', 'above', 'below',
     'more than', 'less than', 'vs', 'versus', 'scorecard', 'overview',
-    'snapshot',
+    'snapshot', 'summary', 'complete summary', 'report', 'full report',
+    'details', 'profile', 'card', 'breakdown',
 )
 
 # Phrases that, when present together with a filter entity, indicate HYBRID
 # intent (filter + query).
 _HYBRID_METRIC_WORDS = (
+    'statistics', 'statistic', 'stats', 'analyze', 'analysis', 'review', 'performance', 'health',
     'dropout', 'strength', 'ratio', 'staff', 'rooms', 'sections',
-    'percentage', '%', 'scorecard', 'overview', 'snapshot',
+    'percentage', '%', 'scorecard', 'overview', 'snapshot', 'summary',
+    'report', 'details', 'breakdown', 'profile',
 )
 
 
@@ -92,132 +96,146 @@ def _normalise(s: str) -> str:
 # ---------------------------------------------------------------------------
 # Branch entity matching (word-boundary, longest-wins)
 # ---------------------------------------------------------------------------
+NUMBER_WORDS = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6,
+    'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11,
+    'twelve': 12, 'fifteen': 15, 'twenty': 20,
+}
+
+
+def normalize_entity_name(s: str) -> str:
+    """Normalize text for entity matching: lowercase, strip honorifics, strip punctuation, collapse spaces, convert word numbers to digits."""
+    if not s:
+        return ""
+    s = str(s).lower().strip()
+    s = re.sub(r'^(mr\.|mr\s+|mrs\.|mrs\s+|dr\.|dr\s+)', '', s)
+    s = re.sub(r'[._\-,]+', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    words = s.split()
+    converted = [str(NUMBER_WORDS[w]) if w in NUMBER_WORDS else w for w in words]
+    return ' '.join(converted)
+
+
+def resolve_single_entity(query_text: str, candidate_entities: list[str], entity_type: str = 'branch') -> str | None:
+    """
+    Resolves the intended entity from `query_text` against `candidate_entities`.
+    Returns the exact canonical string from `candidate_entities` if matched, else None.
+    
+    Priority Matching:
+    1. Exact normalized phrase match in query (longest match wins).
+    2. High-confidence fuzzy match (>= 80%).
+    3. Moderate-confidence fuzzy match (70-79%) if single clear winner.
+    """
+    candidates = [str(c).strip() for c in candidate_entities if c and str(c).strip()]
+    if not candidates:
+        return None
+
+    norm_q = normalize_entity_name(query_text)
+    if not norm_q:
+        return None
+    
+    query_digits = set(re.findall(r'\b\d+\b', norm_q))
+
+    # Step A: Exact / Word-Boundary Phrase Match (Longest Wins)
+    exact_matches = []
+    for raw_cand in candidates:
+        norm_cand = normalize_entity_name(raw_cand)
+        if not norm_cand:
+            continue
+        
+        cand_digits = set(re.findall(r'\b\d+\b', norm_cand))
+        if cand_digits and not cand_digits.issubset(query_digits):
+            continue
+
+        pattern = r'\b' + re.escape(norm_cand) + r'\b'
+        if re.search(pattern, norm_q):
+            exact_matches.append((raw_cand, norm_cand, len(norm_cand)))
+
+    if exact_matches:
+        exact_matches.sort(key=lambda x: x[2], reverse=True)
+        return exact_matches[0][0]
+
+    # For person names (RI / AGM), check strategy for token-set match
+    if entity_type in ('ri', 'agm'):
+        person_matches = []
+        for raw_cand in candidates:
+            norm_cand = normalize_entity_name(raw_cand)
+            cand_digits = set(re.findall(r'\b\d+\b', norm_cand))
+            if cand_digits and not cand_digits.issubset(query_digits):
+                continue
+            tokens = [t for t in norm_cand.split() if len(t) > 1]
+            if tokens and all(re.search(r'\b' + re.escape(t) + r'\b', norm_q) for t in tokens):
+                person_matches.append((raw_cand, len(norm_cand)))
+        if person_matches:
+            person_matches.sort(key=lambda x: x[1], reverse=True)
+            return person_matches[0][0]
+
+    # Step B & C: Fuzzy Matching
+    stopwords = {
+        'statistics', 'statistic', 'stats', 'show', 'give', 'of', 'branch', 'branches',
+        'ri', 'ris', 'agm', 'agms', 'zone', 'zones', 'the', 'analyze', 'analysis',
+        'review', 'performance', 'summary', 'scorecard', 'report', 'details', 'for',
+        'in', 'at', 'please', 'me', 'what', 'is', 'are', 'highest', 'lowest', 'top'
+    }
+    q_words = [w for w in norm_q.split() if w not in stopwords]
+    clean_q = ' '.join(q_words).strip()
+    
+    if not clean_q:
+        return None
+
+    scores = []
+    for raw_cand in candidates:
+        norm_cand = normalize_entity_name(raw_cand)
+        if not norm_cand:
+            continue
+        
+        cand_digits = set(re.findall(r'\b\d+\b', norm_cand))
+        if cand_digits and not cand_digits.issubset(query_digits):
+            continue
+
+        ratio = difflib.SequenceMatcher(None, clean_q, norm_cand).ratio()
+        
+        cand_tokens = norm_cand.split()
+        if len(q_words) == 1:
+            w = q_words[0]
+            for ct in cand_tokens:
+                token_ratio = difflib.SequenceMatcher(None, w, ct).ratio()
+                if token_ratio > ratio:
+                    ratio = token_ratio
+        
+        scores.append((raw_cand, ratio))
+
+    scores.sort(key=lambda x: x[1], reverse=True)
+
+    if not scores:
+        return None
+
+    best_cand, best_score = scores[0]
+    second_score = scores[1][1] if len(scores) > 1 else 0.0
+
+    if best_score >= 0.80:
+        return best_cand
+
+    if 0.70 <= best_score < 0.80:
+        if (best_score - second_score) >= 0.10:
+            return best_cand
+
+    return None
+
 
 def _match_branches_in_question(q: str, branches: list[str]) -> list[str]:
-    """
-    Find branch names mentioned in question `q`.
-
-    Algorithm:
-    1. For each branch, build a regex that matches ALL tokens of the branch
-       name as whole words in `q`.  "GAJUWAKA 2" requires both \\bgajuwaka\\b
-       AND \\b2\\b present in q.
-    2. Collect all matching branches.
-    3. Remove any match that is a strict prefix of a longer match
-       (longest-wins / maximal-munch).  E.g. if both "GAJUWAKA" and
-       "GAJUWAKA 2" match, keep only "GAJUWAKA 2".
-    4. If still > 1 candidate, return all of them (→ clarification).
-    """
-    q_l = _normalise(q)
-    raw_matches: list[str] = []
-
-    for branch in branches:
-        b_l = _normalise(branch)
-        words = b_l.split()
-        # Every word of the branch name must appear as a whole word in q.
-        if all(re.search(rf'\b{re.escape(w)}\b', q_l) for w in words):
-            raw_matches.append(branch)
-
-    if not raw_matches:
-        return []
-
-    # Longest-wins: remove any match whose normalised form is a strict prefix
-    # (subset of words) of another match in the same list.
-    normed = [_normalise(b) for b in raw_matches]
-    filtered = []
-    for i, b in enumerate(raw_matches):
-        b_l = normed[i]
-        is_prefix_of_longer = any(
-            b_l != normed[j] and normed[j].startswith(b_l + " ")
-            for j in range(len(raw_matches))
-        )
-        if not is_prefix_of_longer:
-            filtered.append(b)
-
-    return filtered
-
-
-# ---------------------------------------------------------------------------
-# Zone / AGM / RI entity matching (whole-string, case-insensitive)
-# ---------------------------------------------------------------------------
-
-def _meaningful_tokens(name: str) -> list[str]:
-    """
-    Extract meaningful word tokens from a name, stripping honorifics and
-    single-letter initials.
-
-    "Mr.M.Ramana"      → ["ramana"]
-    "Mr M.V.L.Naresh"  → ["naresh"]
-    "Mr.Ahmedali"      → ["ahmedali"]
-    "Mr.Uday Shankar V" → ["uday", "shankar"]
-    "Mr.P Gopi Nath"   → ["gopi", "nath"]
-    """
-    # Normalise, split on spaces and dots
-    parts = re.split(r'[\s.]+', _normalise(name))
-    # Remove honorifics and single-character parts (initials like M, V, P)
-    stopwords = {'mr', 'mrs', 'ms', 'dr', 'sri', 'smt'}
-    tokens = [p for p in parts if p and p not in stopwords and len(p) > 1]
-    return tokens
+    res = resolve_single_entity(q, branches, 'branch')
+    return [res] if res else []
 
 
 def _match_ris(q: str, ris: list[str]) -> list[str]:
-    """
-    Match RI (person) names in `q` using two strategies:
-
-    1. Full phrase match: "Mr.Ahmedali" appears verbatim in question.
-    2. Meaningful-token match: every significant word of the RI name
-       (initials and "Mr" stripped) appears as a word boundary in question.
-       e.g. "show ahmedali" matches "Mr.Ahmedali"
-            "show ramana"   matches "Mr.M.Ramana"
-            "gopi nath"     matches "Mr.P Gopi Nath"
-
-    Returns at most one RI (the best match). If multiple RIs could match,
-    returns all of them so the caller can trigger clarification.
-    """
-    q_l = _normalise(q)
-    matched = []
-
-    for ri in ris:
-        ri_l = _normalise(ri)
-        # Strategy 1: verbatim phrase
-        if re.search(rf'\b{re.escape(ri_l)}\b', q_l):
-            matched.append(ri)
-            continue
-        # Strategy 2: meaningful tokens
-        tokens = _meaningful_tokens(ri)
-        if tokens and all(re.search(rf'\b{re.escape(t)}\b', q_l) for t in tokens):
-            matched.append(ri)
-
-    return matched
+    res = resolve_single_entity(q, ris, 'ri')
+    return [res] if res else []
 
 
 def _match_dimension(q: str, candidates: list[str]) -> list[str]:
-    """
-    Match zone / AGM names in `q`.
-
-    Requires the candidate's normalised form to appear as a whole
-    contiguous phrase in `q`.
-    """
-    q_l = _normalise(q)
-    found = []
-    # Sort by length descending so longer names match first (e.g. "Rajahmundry - East"
-    # before "Rajahmundry").
-    for cand in sorted(candidates, key=len, reverse=True):
-        cand_l = _normalise(cand)
-        # Use re.escape so hyphens and dots don't cause issues.
-        if re.search(rf'\b{re.escape(cand_l)}\b', q_l):
-            found.append(cand)
-    # Longest-wins: remove prefixes
-    normed = [_normalise(c) for c in found]
-    result = []
-    for i, c in enumerate(found):
-        c_l = normed[i]
-        dominated = any(
-            c_l != normed[j] and normed[j].startswith(c_l)
-            for j in range(len(found))
-        )
-        if not dominated:
-            result.append(c)
-    return result
+    res = resolve_single_entity(q, candidates, 'zone')
+    return [res] if res else []
 
 
 # ---------------------------------------------------------------------------
@@ -264,8 +282,8 @@ def extract_intent(
     # 2. Extract named entities from the question
     # ------------------------------------------------------------------
     matched_zones = _match_dimension(q, zones)
-    matched_agms = _match_dimension(q, agms)
-    matched_ris = _match_dimension(q, ris)
+    matched_agms = _match_ris(q, agms) or _match_dimension(q, agms)
+    matched_ris = _match_ris(q, ris)
     matched_branches = _match_branches_in_question(q, branches)
 
     has_entity = bool(matched_zones or matched_agms or matched_ris or matched_branches)

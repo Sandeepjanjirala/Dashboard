@@ -1,6 +1,52 @@
-Django==6.1
-djangorestframework==3.18.0
-django-cors-headers==4.9.0
-pandas>=2.2
-openpyxl>=3.1
-requests>=2.31
+# ==============================================================================
+# AI Executive Analyst & Branch Query Engine — Dependencies
+# Python Version: 3.10+ / 3.11+ / 3.12+
+# ==============================================================================
+
+# Core Django Web Framework & REST API
+Django==5.2.17
+djangorestframework==3.18.1
+asgiref==3.12.1
+sqlparse==0.6.0
+
+# Data Analysis & Excel Spreadsheet Processing
+pandas==2.3.3
+numpy==2.5.3
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+tzdata==2026.3
+
+# Local Offline Speech-to-Text (Whisper AI Engine)
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+onnxruntime==1.30.0
+tokenizers==0.23.2
+huggingface_hub==1.31.0
+av==18.1.0
+hf-xet==1.6.0
+flatbuffers==25.12.19
+protobuf==7.36.1
+
+# HTTP Clients, Networking & Async Utilities
+requests==2.34.2
+urllib3==2.7.0
+httpx==0.28.1
+httpcore==1.0.9
+h11==0.16.0
+anyio==4.15.1
+certifi==2026.7.22
+charset-normalizer==3.5.1
+idna==3.19
+
+# Configuration & General Utilities
+PyYAML==6.0.3
+tqdm==4.70.1
+click==8.5.0
+colorama==0.4.6
+filelock==3.32.6
+fsspec==2026.7.0
+packaging==26.3
+six==1.17.0
+typing_extensions==4.16.0

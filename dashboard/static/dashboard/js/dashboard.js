@@ -10,23 +10,50 @@
 
 const API_BASE = "/api/dashboard/";
 const FILTERS_URL = API_BASE + "filters/";
+const FEE_DUE_URL = API_BASE + "fee-due/";
 
 let dropoutRingChart = null;
+let activeDashboard = "main_report";
+
+const DASHBOARD_CONFIG = {
+  main_report: {
+    id: "main_report",
+    dataset: "branch_analytics",
+    title: "Main Report Drop Outs & Staff Ratio",
+    pageTitle: "Main Report 25-26 Drop Outs & Staff Ratio",
+    url: API_BASE,
+    viewSelector: "#view-main-report",
+  },
+  fee_due: {
+    id: "fee_due",
+    dataset: "fee_due",
+    title: "Fee Due Analysis (2024-25 vs 2025-26)",
+    pageTitle: "Fee Due Analysis Dashboard",
+    url: FEE_DUE_URL,
+    viewSelector: "#view-fee-due",
+  },
+  revenue_vs_salary: {
+    id: "revenue_vs_salary",
+    dataset: "revenue_vs_salary",
+    title: "Revenue vs Salary Analysis Dashboard",
+    pageTitle: "Revenue vs Salary Analysis Dashboard",
+    url: API_BASE + "revenue-vs-salary/",
+    viewSelector: "#view-revenue-vs-salary",
+  },
+};
 
 $(document).ready(function () {
   initSidebarToggle();
+  initMultiDashboardNav();
 
   // Initial page load: get top-level filter options, then load the
-  // dashboard once the dropdowns reflect them.
+  // active dashboard once the dropdowns reflect them.
   loadFilters("All", "All", "All", { resetRi: true, resetZone: true, resetBranch: true }).done(function () {
     loadDashboard();
   });
 
   $("#agm-select").on("change", function () {
     const agm = $(this).val();
-    // AGM changed -> RI, Zone and Branch must reset to All and their option
-    // lists must be reloaded for the new AGM BEFORE the dashboard is
-    // requested, otherwise a stale RI/Zone/Branch selection could be sent.
     loadFilters(agm, "All", "All", { resetRi: true, resetZone: true, resetBranch: true }).done(function () {
       loadDashboard();
     });
@@ -35,8 +62,6 @@ $(document).ready(function () {
   $("#ri-select").on("change", function () {
     const agm = $("#agm-select").val();
     const ri = $(this).val();
-    // RI changed -> Zone and Branch must reset to All and reload for
-    // AGM+RI before the dashboard is requested.
     loadFilters(agm, ri, "All", { resetZone: true, resetBranch: true }).done(function () {
       loadDashboard();
     });
@@ -46,8 +71,6 @@ $(document).ready(function () {
     const agm = $("#agm-select").val();
     const ri = $("#ri-select").val();
     const zone = $(this).val();
-    // Zone changed -> Branch must reset to All and reload for AGM+RI+Zone
-    // before the dashboard is requested.
     loadFilters(agm, ri, zone, { resetBranch: true }).done(function () {
       loadDashboard();
     });
@@ -57,11 +80,60 @@ $(document).ready(function () {
     loadDashboard();
   });
 
+  $("#reset-filters-btn").on("click", function () {
+    loadFilters("All", "All", "All", { resetRi: true, resetZone: true, resetBranch: true }).done(function () {
+      loadDashboard();
+    });
+  });
+
   $("#view-all-branches-btn").on("click", function () {
     branchSummaryExpanded = !branchSummaryExpanded;
     renderBranchSummaryRows();
   });
 });
+
+/* ---------------------------------------------------------------------
+ * Multi-Dashboard Switcher (Bottom Nav)
+ * ------------------------------------------------------------------- */
+
+function initMultiDashboardNav() {
+  $(".dash-nav-btn").on("click", function () {
+    const dashId = $(this).data("dashboard");
+    if (!dashId || $(this).hasClass("disabled") || dashId === activeDashboard) return;
+
+    switchDashboard(dashId);
+  });
+}
+
+function switchDashboard(dashId) {
+  const config = DASHBOARD_CONFIG[dashId];
+  if (!config) return;
+
+  activeDashboard = dashId;
+
+  // Update Nav buttons active state
+  $(".dash-nav-btn").removeClass("active");
+  $('.dash-nav-btn[data-dashboard="' + dashId + '"]').addClass("active");
+
+  // Toggle View Containers immediately
+  $(".dashboard-view").removeClass("active").css("display", "none");
+  $(config.viewSelector).addClass("active").css("display", "flex");
+
+  // Update Header Titles
+  $("#header-dashboard-title").text(config.title);
+  $("#page-title").text(config.pageTitle);
+
+  // Load dashboard data immediately for active selection
+  loadDashboard();
+
+  // Reload filter dropdown options for the new dataset
+  const currentAgm = $("#agm-select").val() || "All";
+  const currentRi = $("#ri-select").val() || "All";
+  const currentZone = $("#zone-select").val() || "All";
+  loadFilters(currentAgm, currentRi, currentZone, {});
+}
+
+
 
 /* ---------------------------------------------------------------------
  * Sidebar toggle (purely presentational -- no data implications)
@@ -86,7 +158,10 @@ function initSidebarToggle() {
 // is what prevents the AGM/RI/Zone change race condition described in the spec.
 function loadFilters(agm, ri, zone, opts) {
   opts = opts || {};
-  const params = {};
+  const config = DASHBOARD_CONFIG[activeDashboard] || DASHBOARD_CONFIG.main_report;
+  const params = {
+    dataset: config.dataset,
+  };
   if (agm && agm !== "All") params.agm = agm;
   if (ri && ri !== "All") params.ri = ri;
   if (zone && zone !== "All") params.zone = zone;
@@ -115,7 +190,7 @@ function loadFilters(agm, ri, zone, opts) {
 function populateAgmDropdown(agms, selected) {
   const $sel = $("#agm-select");
   const current = selected || $sel.val() || "All";
-  $sel.empty().append('<option value="All">All</option>');
+  $sel.empty().append('<option value="All">AGM</option>');
   (agms || []).forEach(function (name) {
     $sel.append($("<option></option>").val(name).text(name));
   });
@@ -129,7 +204,7 @@ function populateAgmDropdown(agms, selected) {
 function populateRiDropdown(ris, selected) {
   const $sel = $("#ri-select");
   const current = selected || "All";
-  $sel.empty().append('<option value="All">All</option>');
+  $sel.empty().append('<option value="All">RI</option>');
   (ris || []).forEach(function (name) {
     $sel.append($("<option></option>").val(name).text(name));
   });
@@ -143,7 +218,7 @@ function populateRiDropdown(ris, selected) {
 function populateZoneDropdown(zones, selected) {
   const $sel = $("#zone-select");
   const current = selected || "All";
-  $sel.empty().append('<option value="All">All</option>');
+  $sel.empty().append('<option value="All">Zone</option>');
   (zones || []).forEach(function (name) {
     $sel.append($("<option></option>").val(name).text(name));
   });
@@ -157,7 +232,7 @@ function populateZoneDropdown(zones, selected) {
 function populateBranchDropdown(branches, selected) {
   const $sel = $("#branch-select");
   const current = selected || "All";
-  $sel.empty().append('<option value="All">All</option>');
+  $sel.empty().append('<option value="All">Branch</option>');
   (branches || []).forEach(function (name) {
     $sel.append($("<option></option>").val(name).text(name));
   });
@@ -170,11 +245,6 @@ function populateBranchDropdown(branches, selected) {
 
 /* ---------------------------------------------------------------------
  * Filter context (shared with the AI Assistant panel)
- *
- * Single source of truth for the AGM/RI/Branch selection the dashboard
- * is currently showing. ai-assistant.js calls this (via sendQuestion())
- * so every AI question -- typed or spoken -- automatically carries the
- * same filter scope, without duplicating any dropdown-reading logic.
  * ------------------------------------------------------------------- */
 
 function getDashboardFilterContext() {
@@ -183,20 +253,16 @@ function getDashboardFilterContext() {
     agm: $("#agm-select").val() || "All",
     ri: $("#ri-select").val() || "All",
     zone: $("#zone-select").val() || "All",
-    // #branch-select is a single <select> today, so this is always a
-    // 1-element array. It's modelled as an array (not a single string) so
-    // the AI request contract already supports multi-branch selection if
-    // that dropdown becomes multi-select later -- no further changes
-    // would be needed here or on the backend.
     branches: [branchVal],
   };
 }
 
 /* ---------------------------------------------------------------------
- * Dashboard data
+ * Dashboard data dispatcher
  * ------------------------------------------------------------------- */
 
 function loadDashboard() {
+  const config = DASHBOARD_CONFIG[activeDashboard] || DASHBOARD_CONFIG.main_report;
   const params = {
     agm: $("#agm-select").val() || "All",
     ri: $("#ri-select").val() || "All",
@@ -208,7 +274,7 @@ function loadDashboard() {
   hideError();
 
   $.ajax({
-    url: API_BASE,
+    url: config.url,
     method: "GET",
     data: params,
     dataType: "json",
@@ -218,12 +284,23 @@ function loadDashboard() {
         showError((resp && resp.error) || "No data returned for this selection.");
         return;
       }
-      renderKpis(resp.kpis);
-      renderDropoutAnalysis(resp.dropout_analysis);
-      renderStaffAnalysis(resp.staff_analysis);
-      renderRiAnalysis(resp.ri_analysis, resp.ri_grand_total, resp.filters);
-      renderBranchSummary(resp.branch_analysis, resp.filters);
+      if (activeDashboard === "fee_due") {
+        if (typeof FeeDueDashboard !== "undefined") {
+          FeeDueDashboard.render(resp);
+        }
+      } else if (activeDashboard === "revenue_vs_salary") {
+        if (typeof RevenueSalaryDashboard !== "undefined") {
+          RevenueSalaryDashboard.render(resp);
+        }
+      } else {
+        renderKpis(resp.kpis);
+        renderDropoutAnalysis(resp.dropout_analysis);
+        renderStaffAnalysis(resp.staff_analysis);
+        renderRiAnalysis(resp.ri_analysis, resp.ri_grand_total, resp.filters);
+        renderBranchSummary(resp.branch_analysis, resp.filters);
+      }
     })
+
     .fail(function (xhr) {
       showError(extractError(xhr, "Could not load dashboard data."));
     })

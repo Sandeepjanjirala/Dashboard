@@ -4,10 +4,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Main Report 25-26 Drop Outs &amp; Staff Ratio</title>
-<link rel="stylesheet" href="{% static 'dashboard/css/dashboard.css' %}">
+<title id="page-title">Main Report 25-26 Drop Outs &amp; Staff Ratio</title>
+<link rel="stylesheet" href="{% static 'dashboard/css/dashboard.css' %}?v=6.0">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -21,17 +23,25 @@
         <button type="button" class="hamburger-btn" id="sidebar-toggle" aria-label="Toggle navigation">
           <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
-        <h1>Main Report Drop Outs &amp; Staff Ratio</h1>
+        <h1 id="header-dashboard-title">Main Report Drop Outs &amp; Staff Ratio</h1>
       </div>
       <div class="topbar-right">
         <div class="filter-field">
           <span class="icon filter-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/></svg></span>
           <select id="agm-select" aria-label="AGM"><option value="All">AGM</option></select>
         </div>
-        <div class="filter-field">
-          <span class="icon filter-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></svg></span>
-          <select id="ri-select" aria-label="RI"><option value="All">RI</option></select>
-        </div>
+<div class="filter-field">
+  <span class="icon filter-icon">
+    <svg viewBox="0 0 24 24">
+      <rect x="4" y="3" width="16" height="18" rx="1"/>
+      <path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/>
+    </svg>
+  </span>
+
+  <select id="ri-select" aria-label="RI">
+    <option value="">RI</option>
+  </select>
+</div>
         <div class="filter-field">
           <span class="icon filter-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 0 0 0 18M12 3a14 14 0 0 1 0 18"/></svg></span>
           <select id="zone-select" aria-label="Zone"><option value="All">Zone</option></select>
@@ -40,6 +50,10 @@
           <span class="icon filter-icon"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.3 7-11.5A7 7 0 0 0 5 9.5C5 14.7 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></svg></span>
           <select id="branch-select" aria-label="Branch"><option value="All">Branch</option></select>
         </div>
+        <button type="button" class="btn-reset-filters" id="reset-filters-btn" title="Reset Filters">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+          Reset Filters
+        </button>
       </div>
     </header>
 
@@ -54,232 +68,569 @@
     <div class="page-layout">
     <main id="dashboard-content">
 
-      <!-- KPI CARDS (ROW 1) -->
-      <section class="kpi-grid" id="kpi-grid">
-        <div class="kpi-card" data-kpi="total_sections">
-          <div class="kpi-card-top">
-            <div>
-              <div class="kpi-label">Total No. of Sections</div>
-              <div class="kpi-value" data-field="value">--</div>
+      <!-- ==================================================================== -->
+      <!-- VIEW 1: MAIN REPORT (DROPOUTS & STAFF RATIO)                         -->
+      <!-- ==================================================================== -->
+      <div id="view-main-report" class="dashboard-view active">
+
+        <!-- KPI CARDS (ROW 1) -->
+        <section class="kpi-grid" id="kpi-grid">
+          <div class="kpi-card" data-kpi="total_sections">
+            <div class="kpi-card-top">
+              <div>
+                <div class="kpi-label">Total No. of Sections</div>
+                <div class="kpi-value" data-field="value">--</div>
+              </div>
+            </div>
+            <div class="kpi-card-bottom">
+              <div class="kpi-sub" data-field="ly">&nbsp;</div>
+              <span class="kpi-icon blue"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
             </div>
           </div>
-          <div class="kpi-card-bottom">
-            <div class="kpi-sub" data-field="ly">&nbsp;</div>
-            <span class="kpi-icon blue"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
-          </div>
-        </div>
 
-        <div class="kpi-card" data-kpi="total_class_rooms">
-          <div class="kpi-card-top">
-            <div>
-              <div class="kpi-label">Total No. of Class Rooms</div>
-              <div class="kpi-value" data-field="value">--</div>
+          <div class="kpi-card" data-kpi="total_class_rooms">
+            <div class="kpi-card-top">
+              <div>
+                <div class="kpi-label">Total No. of Class Rooms</div>
+                <div class="kpi-value" data-field="value">--</div>
+              </div>
+            </div>
+            <div class="kpi-card-bottom">
+              <div class="kpi-sub" data-field="ly">&nbsp;</div>
+              <span class="kpi-icon green"><svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-8h6v8"/></svg></span>
             </div>
           </div>
-          <div class="kpi-card-bottom">
-            <div class="kpi-sub" data-field="ly">&nbsp;</div>
-            <span class="kpi-icon green"><svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-8h6v8"/></svg></span>
-          </div>
-        </div>
 
-        <div class="kpi-card" data-kpi="occupied_rooms">
-          <div class="kpi-card-top">
-            <div>
-              <div class="kpi-label">No. of Rooms Occupied</div>
-              <div class="kpi-value" data-field="value">--</div>
+          <div class="kpi-card" data-kpi="occupied_rooms">
+            <div class="kpi-card-top">
+              <div>
+                <div class="kpi-label">No. of Rooms Occupied</div>
+                <div class="kpi-value" data-field="value">--</div>
+              </div>
+            </div>
+            <div class="kpi-card-bottom">
+              <div class="kpi-sub" data-field="ly">&nbsp;</div>
+              <span class="kpi-icon purple"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/><circle cx="18" cy="8" r="3"/></svg></span>
             </div>
           </div>
-          <div class="kpi-card-bottom">
-            <div class="kpi-sub" data-field="ly">&nbsp;</div>
-            <span class="kpi-icon purple"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/><circle cx="18" cy="8" r="3"/></svg></span>
-          </div>
-        </div>
 
-        <div class="kpi-card" data-kpi="empty_rooms">
-          <div class="kpi-card-top">
-            <div>
-              <div class="kpi-label">No. of Empty Rooms</div>
-              <div class="kpi-value" data-field="value">--</div>
+          <div class="kpi-card" data-kpi="empty_rooms">
+            <div class="kpi-card-top">
+              <div>
+                <div class="kpi-label">No. of Empty Rooms</div>
+                <div class="kpi-value" data-field="value">--</div>
+              </div>
+            </div>
+            <div class="kpi-card-bottom">
+              <div class="kpi-sub" data-field="ly">&nbsp;</div>
+              <span class="kpi-icon orange"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="1"/><path d="M3 7l2-4h14l2 4M3 7h18"/></svg></span>
             </div>
           </div>
-          <div class="kpi-card-bottom">
-            <div class="kpi-sub" data-field="ly">&nbsp;</div>
-            <span class="kpi-icon orange"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="1"/><path d="M3 7l2-4h14l2 4M3 7h18"/></svg></span>
-          </div>
-        </div>
 
-        <div class="kpi-card" data-kpi="avg_strength_per_section">
-          <div class="kpi-card-top">
-            <div>
-              <div class="kpi-label">Total Avg Strength per Section</div>
-              <div class="kpi-value" data-field="value">--</div>
+          <div class="kpi-card" data-kpi="avg_strength_per_section">
+            <div class="kpi-card-top">
+              <div>
+                <div class="kpi-label">Total Avg Strength per Section</div>
+                <div class="kpi-value" data-field="value">--</div>
+              </div>
+            </div>
+            <div class="kpi-card-bottom">
+              <div class="kpi-sub" data-field="ly">&nbsp;</div>
+              <span class="kpi-icon blue"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M13 20v-1a5 5 0 0 1 5-5h0a5 5 0 0 1 4 2"/></svg></span>
             </div>
           </div>
-          <div class="kpi-card-bottom">
-            <div class="kpi-sub" data-field="ly">&nbsp;</div>
-            <span class="kpi-icon blue"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M13 20v-1a5 5 0 0 1 5-5h0a5 5 0 0 1 4 2"/></svg></span>
-          </div>
-        </div>
 
-        <div class="kpi-card" data-kpi="cy_dropout_percentage">
-          <div class="kpi-card-top">
-            <div>
-              <div class="kpi-label">Dropouts %</div>
-              <div class="kpi-value" data-field="value">--</div>
+          <div class="kpi-card" data-kpi="cy_dropout_percentage">
+            <div class="kpi-card-top">
+              <div>
+                <div class="kpi-label">Dropouts %</div>
+                <div class="kpi-value" data-field="value">--</div>
+              </div>
+            </div>
+            <div class="kpi-card-bottom">
+              <div class="kpi-sub" data-field="ly">&nbsp;</div>
+              <span class="kpi-icon red"><svg viewBox="0 0 24 24"><path d="M12 2l9 16H3z"/><path d="M12 9v4M12 17h.01"/></svg></span>
             </div>
           </div>
-          <div class="kpi-card-bottom">
-            <div class="kpi-sub" data-field="ly">&nbsp;</div>
-            <span class="kpi-icon red"><svg viewBox="0 0 24 24"><path d="M12 2l9 16H3z"/><path d="M12 9v4M12 17h.01"/></svg></span>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- ROW 2: DROPOUT ANALYSIS & RI-WISE BREAKDOWN -->
-      <div class="row-2col">
-        <!-- DROPOUT ANALYSIS -->
-        <section class="panel" id="dropout-analysis-panel">
-          <h2>DROPOUT ANALYSIS <span class="panel-subtitle">(vs 2024-25)</span></h2>
+        <!-- ROW 2: DROPOUT ANALYSIS & RI-WISE BREAKDOWN -->
+        <div class="row-2col">
+          <!-- DROPOUT ANALYSIS -->
+          <section class="panel" id="dropout-analysis-panel">
+            <h2>DROPOUT ANALYSIS <span class="panel-subtitle">(vs 2024-25)</span></h2>
 
-          <div class="dropout-overview">
-            <div class="dropout-ly-box">
-              <div class="mini-label">Dropouts %</div>
-              <div class="mini-value ly" id="overall-ly-pct">--</div>
-              <div class="mini-label">Total Dropouts</div>
-              <div class="mini-total" id="overall-ly-total">--</div>
-            </div>
-
-            <div class="dropout-ring-box">
-              <canvas id="dropout-ring-chart" width="140" height="140"></canvas>
-              <div class="ring-center">
+            <div class="dropout-overview">
+              <div class="dropout-ly-box">
                 <div class="mini-label">Dropouts %</div>
-                <div class="mini-value cy" id="overall-cy-pct">--</div>
+                <div class="mini-value ly" id="overall-ly-pct">--</div>
                 <div class="mini-label">Total Dropouts</div>
-                <div class="mini-total" id="overall-cy-total">--</div>
+                <div class="mini-total" id="overall-ly-total">--</div>
+              </div>
+
+              <div class="dropout-ring-box">
+                <canvas id="dropout-ring-chart" width="140" height="140"></canvas>
+                <div class="ring-center">
+                  <div class="mini-label">Dropouts %</div>
+                  <div class="mini-value cy" id="overall-cy-pct">--</div>
+                  <div class="mini-label">Total Dropouts</div>
+                  <div class="mini-total" id="overall-cy-total">--</div>
+                </div>
+              </div>
+
+              <div class="category-cards" id="category-cards">
+                <!-- PP/PS/HS category cards populated dynamically -->
               </div>
             </div>
+          </section>
 
-            <div class="category-cards" id="category-cards">
-              <!-- PP/PS/HS category cards populated dynamically -->
+          <!-- TOP 8 RI WISE DROPOUT ANALYSIS -->
+          <section class="panel" id="ri-analysis-panel">
+            <h2 id="ri-analysis-title">Top 8 RI Wise Dropout Analysis</h2>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>RI Name</th>
+                    <th>CY Drop</th>
+                    <th>Dropout %</th>
+                    <th>Staff Ratio</th>
+                    <th>Empty Room</th>
+                  </tr>
+                </thead>
+                <tbody id="ri-analysis-body">
+                  <tr><td colspan="5" class="empty-row">Loading...</td></tr>
+                </tbody>
+                <tfoot>
+                  <tr id="ri-analysis-total"></tr>
+                </tfoot>
+              </table>
             </div>
+          </section>
+        </div>
+
+        <!-- ROW 3: STAFF ANALYSIS & BRANCH WISE SUMMARY -->
+        <div class="row-2col">
+          <!-- STAFF ANALYSIS -->
+          <section class="panel" id="staff-analysis-panel">
+            <h2>STAFF ANALYSIS</h2>
+
+            <div class="staff-analysis-grid">
+              <div class="staff-count-col">
+                <div class="staff-count-card admin">
+                  <div class="staff-card-left">
+                    <div class="staff-count-title">
+                      <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/></svg></span>
+                      ADMIN STAFF
+                    </div>
+                    <div class="staff-count-line">2024-25: <strong id="admin-ly">--</strong></div>
+                    <div class="staff-count-line">2025-26: <strong id="admin-cy">--</strong></div>
+                  </div>
+                  <div class="staff-badge-diff" id="admin-diff">--</div>
+                </div>
+                <div class="staff-count-card activity">
+                  <div class="staff-card-left">
+                    <div class="staff-count-title">
+                      <span class="icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/><circle cx="18" cy="8" r="3"/></svg></span>
+                      ACTIVITY STAFF
+                    </div>
+                    <div class="staff-count-line">2024-25: <strong id="activity-ly">--</strong></div>
+                    <div class="staff-count-line">2025-26: <strong id="activity-cy">--</strong></div>
+                  </div>
+                  <div class="staff-badge-diff" id="activity-diff">--</div>
+                </div>
+              </div>
+
+              <div class="ratio-cards" id="ratio-cards">
+                <!-- PP/PS/HS ratio cards populated dynamically -->
+              </div>
+
+              <!-- OVERALL STAFF RATIO -->
+              <div class="overall-ratio-card">
+                <span class="icon overall-ratio-icon"><svg viewBox="0 0 24 24"><path d="M9 3a4 4 0 0 0-4 4c-1.5.3-2.5 1.6-2.5 3.1 0 1 .5 1.9 1.3 2.4-.3.5-.4 1-.4 1.6 0 1.8 1.5 3.2 3.2 3.4.2 1.5 1.5 2.5 3 2.5s2.8-1 3-2.5c1.7-.2 3.2-1.6 3.2-3.4 0-.6-.1-1.1-.4-1.6.8-.5 1.3-1.4 1.3-2.4 0-1.5-1-2.8-2.5-3.1A4 4 0 0 0 9 3z"/><path d="M9 3v17"/></svg></span>
+                <div class="overall-ratio-title">Overall Staff Ratio</div>
+                <div class="overall-ratio-block">
+                  <div class="overall-ratio-year">
+                    <div class="mini-value cy" id="overall-cy-ratio">--</div>
+                    <div class="mini-label">Staff Count: <strong id="overall-cy-staff-count">--</strong></div>
+                  </div>
+                </div>
+                <div class="overall-ratio-block" style="border-top: 1px solid var(--purple-border); padding-top: 6px; width: 100%;">
+                  <div class="overall-ratio-year">
+                    <div class="mini-label">2024-25 Ratio</div>
+                    <div class="mini-value ly" id="overall-ly-ratio" style="font-size: 16px;">--</div>
+                    <div class="mini-label">Staff Count: <strong id="overall-ly-staff-count">--</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- BRANCH WISE SUMMARY -->
+          <section class="panel" id="branch-summary-panel">
+            <h2>Branch Wise Summary</h2>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Branch</th>
+                    <th>CY Drop</th>
+                    <th>Br Drop %</th>
+                    <th>Br STR %</th>
+                    <th>Empty Room</th>
+                  </tr>
+                </thead>
+                <tbody id="branch-summary-body">
+                  <tr><td colspan="5" class="empty-row">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="branch-summary-footer">
+              <div class="branch-count-note" id="branch-count-note"></div>
+              <button type="button" class="view-all-btn" id="view-all-branches-btn">
+                View All Branches <span aria-hidden="true">&rarr;</span>
+              </button>
+            </div>
+          </section>
+        </div>
+
+      </div><!-- /#view-main-report -->
+
+
+      <!-- ==================================================================== -->
+      <!-- VIEW 2: FEE DUE ANALYSIS DASHBOARD                                  -->
+      <!-- ==================================================================== -->
+      <div id="view-fee-due" class="dashboard-view" style="display:none;">
+
+        <!-- 8 FEE DUE KPI CARDS GRID -->
+        <section class="fee-kpi-grid">
+          <div class="fee-kpi-card blue-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+              <span class="fee-kpi-label">2024-25 Fee Due</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-ly-fd">--</div>
+            <div class="fee-kpi-sub">Academic Year 2024-25</div>
+          </div>
+
+          <div class="fee-kpi-card blue-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/><circle cx="18" cy="8" r="3"/></svg></span>
+              <span class="fee-kpi-label">2024-25 Due Count</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-ly-fdc">--</div>
+            <div class="fee-kpi-sub">Total Students</div>
+          </div>
+
+          <div class="fee-kpi-card green-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+              <span class="fee-kpi-label">2025-26 Live Student Fee Due</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-cy-fd">--</div>
+            <div class="fee-kpi-sub">
+              <span class="fee-badge" id="fee-kpi-cy-fd-badge">--</span>
+            </div>
+          </div>
+
+          <div class="fee-kpi-card green-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
+              <span class="fee-kpi-label">2025-26 Live Student Due Count</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-cy-fdc">--</div>
+            <div class="fee-kpi-sub">
+              <span class="fee-badge" id="fee-kpi-cy-fdc-badge">--</span>
+            </div>
+          </div>
+
+          <div class="fee-kpi-card red-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg></span>
+              <span class="fee-kpi-label">Actual Zero Paid Count</span>
+            </div>
+            <div class="fee-kpi-val text-red" id="fee-kpi-zp-count">--</div>
+            <div class="fee-kpi-sub">2025-26 Students</div>
+          </div>
+
+          <div class="fee-kpi-card purple-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+              <span class="fee-kpi-label">Current Year Zero Paid Fee Due</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-zp-fd">--</div>
+            <div class="fee-kpi-sub">Total Zero Paid Amt</div>
+          </div>
+
+          <div class="fee-kpi-card orange-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+              <span class="fee-kpi-label">Fee Paid But Books Not Purchased</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-fp-bn">--</div>
+            <div class="fee-kpi-sub">Students Count</div>
+          </div>
+
+          <div class="fee-kpi-card amber-theme">
+            <div class="fee-kpi-header">
+              <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
+              <span class="fee-kpi-label">Fee Not Paid &amp; Books Not Purchased</span>
+            </div>
+            <div class="fee-kpi-val" id="fee-kpi-fn-bn">--</div>
+            <div class="fee-kpi-sub">Students Count</div>
           </div>
         </section>
 
-        <!-- TOP 8 RI WISE DROPOUT ANALYSIS -->
-        <section class="panel" id="ri-analysis-panel">
-          <h2 id="ri-analysis-title">Top 8 RI Wise Dropout Analysis</h2>
+        <!-- FEE DUE CHARTS ROW 1 -->
+        <div class="fee-charts-grid-3col">
+          <section class="panel">
+            <h2>Fee Due Comparison (Amount)</h2>
+            <div class="chart-container-fee">
+              <canvas id="chart-fee-amount-comp"></canvas>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Fee Due Comparison (Count)</h2>
+            <div class="chart-container-fee">
+              <canvas id="chart-fee-count-comp"></canvas>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Student Segmentation (2025-26)</h2>
+            <div class="chart-container-fee ring-relative">
+              <canvas id="chart-fee-student-seg"></canvas>
+              <div class="fee-donut-center">
+                <div class="mini-label">Total Students</div>
+                <div class="mini-value" id="fee-seg-center-total">--</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- FEE DUE CHARTS & INSIGHTS ROW 2 -->
+        <div class="fee-charts-grid-3col">
+          <section class="panel">
+            <h2>Top 5 Branches by Fee Due (2025-26)</h2>
+            <div class="chart-container-fee">
+              <canvas id="chart-fee-top5"></canvas>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Branch Type Wise Fee Due (2025-26)</h2>
+            <div class="chart-container-fee">
+              <canvas id="chart-fee-type-wise"></canvas>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Key Insights</h2>
+            <div class="insights-list" id="fee-insights-list">
+              <!-- Dynamically populated key insights -->
+            </div>
+          </section>
+        </div>
+
+        <!-- FEE DUE BREAKDOWN TABLE PANEL ROW 3 -->
+        <section class="panel fee-breakdown-panel">
+          <div class="panel-header-subtabs">
+            <h2>Fee Due Analysis Breakdown</h2>
+            <div class="fee-subtabs">
+              <button type="button" class="fee-subtab-btn active" data-tab="overview" onclick="FeeDueDashboard.setSubtab('overview')">Overview</button>
+              <button type="button" class="fee-subtab-btn" data-tab="agm_analysis" onclick="FeeDueDashboard.setSubtab('agm_analysis')">AGM Analysis</button>
+              <button type="button" class="fee-subtab-btn" data-tab="ri_analysis" onclick="FeeDueDashboard.setSubtab('ri_analysis')">RI Analysis</button>
+              <button type="button" class="fee-subtab-btn" data-tab="zone_analysis" onclick="FeeDueDashboard.setSubtab('zone_analysis')">Zone Analysis</button>
+              <button type="button" class="fee-subtab-btn" data-tab="branch_analysis" onclick="FeeDueDashboard.setSubtab('branch_analysis')">Branch Analysis</button>
+            </div>
+          </div>
+
           <div class="table-scroll">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>RI Name</th>
-                  <th>CY Drop</th>
-                  <th>Dropout %</th>
-                  <th>Staff Ratio</th>
-                  <th>Empty Room</th>
-                </tr>
+            <table class="data-table fee-table">
+              <thead id="fee-table-head">
+                <!-- Dynamically generated table head -->
               </thead>
-              <tbody id="ri-analysis-body">
-                <tr><td colspan="5" class="empty-row">Loading...</td></tr>
+              <tbody id="fee-table-body">
+                <tr><td colspan="8" class="text-center">Loading...</td></tr>
               </tbody>
-              <tfoot>
-                <tr id="ri-analysis-total"></tr>
-              </tfoot>
             </table>
           </div>
         </section>
-      </div>
 
-      <!-- ROW 3: STAFF ANALYSIS & BRANCH WISE SUMMARY -->
-      <div class="row-2col">
-        <!-- STAFF ANALYSIS -->
-        <section class="panel" id="staff-analysis-panel">
-          <h2>STAFF ANALYSIS</h2>
+      </div><!-- /#view-fee-due -->
 
-          <div class="staff-analysis-grid">
-            <div class="staff-count-col">
-              <div class="staff-count-card admin">
-                <div class="staff-card-left">
-                  <div class="staff-count-title">
-                    <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/></svg></span>
-                    ADMIN STAFF
-                  </div>
-                  <div class="staff-count-line">2024-25: <strong id="admin-ly">--</strong></div>
-                  <div class="staff-count-line">2025-26: <strong id="admin-cy">--</strong></div>
-                </div>
-                <div class="staff-badge-diff" id="admin-diff">--</div>
-              </div>
-              <div class="staff-count-card activity">
-                <div class="staff-card-left">
-                  <div class="staff-count-title">
-                    <span class="icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/><circle cx="18" cy="8" r="3"/></svg></span>
-                    ACTIVITY STAFF
-                  </div>
-                  <div class="staff-count-line">2024-25: <strong id="activity-ly">--</strong></div>
-                  <div class="staff-count-line">2025-26: <strong id="activity-cy">--</strong></div>
-                </div>
-                <div class="staff-badge-diff" id="activity-diff">--</div>
-              </div>
-            </div>
+      <!-- ==================================================================== -->
+      <!-- VIEW 3: REVENUE VS SALARY ANALYSIS                                   -->
+      <!-- ==================================================================== -->
+      <div id="view-revenue-vs-salary" class="dashboard-view" style="display:none; flex-direction:column; gap:20px;">
 
-            <div class="ratio-cards" id="ratio-cards">
-              <!-- PP/PS/HS ratio cards populated dynamically -->
-            </div>
+        <!-- API ENDPOINT BANNER -->
+        <section class="section-card" style="background:#1e293b; color:#f8fafc; padding:16px; border-radius:8px;">
+          <h2 style="margin:0 0 8px 0; font-size:16px; color:#38bdf8;">⚡ Live API Endpoint Response</h2>
+          <div style="font-size:13px; margin-bottom:8px;">
+            GET <a id="rev-sal-api-url" href="/api/dashboard/revenue-vs-salary/" target="_blank" style="color:#7dd3fc; text-decoration:underline;">/api/dashboard/revenue-vs-salary/</a>
+          </div>
+          <details style="background:#0f172a; padding:10px; border-radius:6px;">
+            <summary style="cursor:pointer; color:#94a3b8; font-weight:600;">View Raw API Payload (JSON)</summary>
+            <pre id="rev-sal-json-output" style="max-height:250px; overflow:auto; margin-top:8px; font-size:11px; color:#a7f3d0; white-space:pre-wrap;"></pre>
+          </details>
+        </section>
 
-            <!-- OVERALL STAFF RATIO -->
-            <div class="overall-ratio-card">
-              <span class="icon overall-ratio-icon"><svg viewBox="0 0 24 24"><path d="M9 3a4 4 0 0 0-4 4c-1.5.3-2.5 1.6-2.5 3.1 0 1 .5 1.9 1.3 2.4-.3.5-.4 1-.4 1.6 0 1.8 1.5 3.2 3.2 3.4.2 1.5 1.5 2.5 3 2.5s2.8-1 3-2.5c1.7-.2 3.2-1.6 3.2-3.4 0-.6-.1-1.1-.4-1.6.8-.5 1.3-1.4 1.3-2.4 0-1.5-1-2.8-2.5-3.1A4 4 0 0 0 9 3z"/><path d="M9 3v17"/></svg></span>
-              <div class="overall-ratio-title">Overall Staff Ratio</div>
-              <div class="overall-ratio-block">
-                <div class="overall-ratio-year">
-                  <div class="mini-value cy" id="overall-cy-ratio">--</div>
-                  <div class="mini-label">Staff Count: <strong id="overall-cy-staff-count">--</strong></div>
-                </div>
-              </div>
-              <div class="overall-ratio-block" style="border-top: 1px solid var(--purple-border); padding-top: 6px; width: 100%;">
-                <div class="overall-ratio-year">
-                  <div class="mini-label">2024-25 Ratio</div>
-                  <div class="mini-value ly" id="overall-ly-ratio" style="font-size: 16px;">--</div>
-                  <div class="mini-label">Staff Count: <strong id="overall-ly-staff-count">--</strong></div>
-                </div>
-              </div>
-            </div>
+        <!-- KPI GRID -->
+        <section class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Total Net Revenue</div><div class="kpi-value" id="kpi-rs-revenue">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Total Salary Cost</div><div class="kpi-value" id="kpi-rs-salary">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Net Surplus</div><div class="kpi-value" id="kpi-rs-surplus">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Total Students</div><div class="kpi-value" id="kpi-rs-students">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Total Employees</div><div class="kpi-value" id="kpi-rs-employees">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Fee Average</div><div class="kpi-value" id="kpi-rs-fee-avg">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Cost per Student</div><div class="kpi-value" id="kpi-rs-cost-student">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Salary vs Revenue %</div><div class="kpi-value" id="kpi-rs-sal-v-rev">--</div></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-card-top"><div><div class="kpi-label">Student Teacher Ratio</div><div class="kpi-value" id="kpi-rs-str">--</div></div></div>
           </div>
         </section>
 
-        <!-- BRANCH WISE SUMMARY -->
-        <section class="panel" id="branch-summary-panel">
-          <h2>Branch Wise Summary</h2>
+        <!-- ACADEMIC SEGMENTS TABLE -->
+        <section class="section-card">
+          <div class="section-card-header">
+            <h2>Academic Segment Breakdown (PP, LPS, UPS, HS, ACD, AD_AC)</h2>
+          </div>
           <div class="table-scroll">
             <table class="data-table">
               <thead>
                 <tr>
+                  <th>Segment</th>
+                  <th>Total Revenue</th>
+                  <th>Total Salary</th>
+                  <th>Surplus</th>
+                  <th>Students</th>
+                  <th>Employees</th>
+                  <th>Salary vs Revenue %</th>
+                  <th>STR</th>
+                </tr>
+              </thead>
+              <tbody id="rev-sal-segment-tbody">
+                <tr><td colspan="8" style="text-align:center;">Loading segment data...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- BRANCH ANALYSIS TABLE -->
+        <section class="section-card">
+          <div class="section-card-header">
+            <h2>Branch Revenue &amp; Salary Analysis</h2>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
                   <th>Branch</th>
-                  <th>CY Drop</th>
-                  <th>Br Drop %</th>
-                  <th>Br STR %</th>
-                  <th>Empty Room</th>
+                  <th>Revenue</th>
+                  <th>Salary</th>
+                  <th>Surplus</th>
+                  <th>Students</th>
+                  <th>Sal vs Rev %</th>
+                  <th>STR</th>
                 </tr>
               </thead>
-              <tbody id="branch-summary-body">
-                <tr><td colspan="5" class="empty-row">Loading...</td></tr>
+              <tbody id="rev-sal-branch-tbody">
+                <tr><td colspan="8" style="text-align:center;">Loading branch data...</td></tr>
               </tbody>
             </table>
           </div>
-          <div class="branch-summary-footer">
-            <div class="branch-count-note" id="branch-count-note"></div>
-            <button type="button" class="view-all-btn" id="view-all-branches-btn">
-              View All Branches <span aria-hidden="true">&rarr;</span>
-            </button>
-          </div>
         </section>
-      </div>
+
+      </div><!-- /#view-revenue-vs-salary -->
 
     </main>
     </div>
     </div>
 
+    <!-- FIXED BOTTOM DASHBOARD NAVIGATION BAR (SUPPORTS 10 DASHBOARDS) -->
+    <nav class="bottom-dashboard-nav" id="bottom-dashboard-nav">
+      <div class="nav-items-scroll">
+        <button type="button" class="dash-nav-btn active" data-dashboard="main_report" onclick="switchDashboard('main_report')" title="Main Report - Dropouts &amp; Staff Ratio">
+          <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+          <span class="nav-text">Overview</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn" data-dashboard="fee_due" onclick="switchDashboard('fee_due')" title="Fee Due Analysis Dashboard">
+          <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+          <span class="nav-text">Fee Due Analysis</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn" data-dashboard="revenue_vs_salary" onclick="switchDashboard('revenue_vs_salary')" title="Revenue vs Salary Analysis Dashboard">
+          <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><path d="M3 12h18"/></svg></span>
+          <span class="nav-text">Revenue vs Salary</span>
+        </button>
+
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_3" title="AGM Analysis (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/></svg></span>
+          <span class="nav-text">AGM Analysis</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_4" title="RI Analysis (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/></svg></span>
+          <span class="nav-text">RI Analysis</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_5" title="Zone Analysis (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></span>
+          <span class="nav-text">Zone Analysis</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_6" title="Branch Analysis (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.3 7-11.5A7 7 0 0 0 5 9.5C5 14.7 12 21 12 21z"/></svg></span>
+          <span class="nav-text">Branch Analysis</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_7" title="Dashboard 7 (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="nav-text">Dashboard 7</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_8" title="Dashboard 8 (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="nav-text">Dashboard 8</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_9" title="Dashboard 9 (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="nav-text">Dashboard 9</span>
+        </button>
+
+        <button type="button" class="dash-nav-btn disabled" data-dashboard="dash_10" title="Dashboard 10 (Coming Soon)">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="nav-text">Dashboard 10</span>
+        </button>
+      </div>
+    </nav>
+
   </div>
+
+  <!-- RESIZER HANDLE -->
+  <div id="resizer" class="resizer"></div>
 
   <!-- AI ASSISTANT PANEL -->
   <aside class="ai-panel" id="ai-panel">
@@ -288,7 +639,10 @@
         <span class="icon ai-bot-icon"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="14" r="1.3"/><circle cx="15" cy="14" r="1.3"/><path d="M8 18h8"/></svg></span>
         AI Assistant
       </span>
-      <span class="ai-panel-status"><span class="ai-status-dot"></span>Online</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="ai-panel-status"><span class="ai-status-dot"></span>Online</span>
+        <a href="http://127.0.0.1:8001/dash" target="_blank" class="full-ai-btn" title="Open full-page AI Assistant">↗</a>
+      </div>
     </div>
 
     <div class="ai-panel-messages" id="ai-messages">
@@ -316,7 +670,10 @@
 
 </div>
 
-<script src="{% static 'dashboard/js/dashboard.js' %}"></script>
-<script src="{% static 'dashboard/js/ai-assistant.js' %}"></script>
+<script src="{% static 'dashboard/js/revenue-salary-dashboard.js' %}?v=6.0"></script>
+<script src="{% static 'dashboard/js/fee-due-dashboard.js' %}?v=6.0"></script>
+<script src="{% static 'dashboard/js/dashboard.js' %}?v=6.0"></script>
+<script src="{% static 'dashboard/js/ai-assistant.js' %}?v=6.0"></script>
+
 </body>
 </html>

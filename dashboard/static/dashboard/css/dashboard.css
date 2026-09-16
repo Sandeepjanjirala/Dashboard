@@ -138,13 +138,17 @@ body {
 .hamburger-btn:hover { background: var(--surface-muted); color: var(--text-primary); }
 
 .topbar h1 {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
 }
+
 
 .topbar-right {
   display: flex;
@@ -606,8 +610,64 @@ body {
 /* ==========================================================================
    AI Assistant Panel (Right Rail)
    ========================================================================== */
+.resizer {
+  width: 8px;
+  height: 100vh;
+  background: var(--surface-muted);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  cursor: col-resize;
+  user-select: none;
+  z-index: 25;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+}
+.resizer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 24px;
+  background: var(--text-subtle);
+  border-radius: 1px;
+}
+.resizer:hover, .resizer.dragging {
+  background: var(--blue-light);
+  border-color: var(--blue-border);
+}
+.resizer:hover::after, .resizer.dragging::after {
+  background: var(--blue);
+}
+
+.full-ai-btn {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.full-ai-btn:hover {
+  color: #ffffff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
 .ai-panel {
   width: var(--ai-panel-w);
+  min-width: 250px;
+  max-width: calc(100vw - 60px);
   flex-shrink: 0;
   height: 100vh;
   background: var(--surface);
@@ -665,6 +725,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
+  overflow-anchor: none;
 }
 
 .ai-msg {
@@ -849,3 +911,414 @@ body {
   .staff-analysis-grid { grid-template-columns: 1fr; }
   .staff-count-col { flex-direction: column; }
 }
+
+/* ==========================================================================
+   Reset Filters Button
+   ========================================================================== */
+.btn-reset-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.btn-reset-filters:hover {
+  background: var(--blue-light);
+  color: var(--blue);
+  border-color: var(--blue-border);
+}
+.btn-reset-filters svg {
+  stroke: currentColor;
+}
+
+/* ==========================================================================
+   Multi-Dashboard Fixed Bottom Navigation Bar (Supports up to 10 Dashboards)
+   ========================================================================== */
+.bottom-dashboard-nav {
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  background: var(--surface) !important;
+  border-top: 1px solid var(--border) !important;
+  box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 16px !important;
+  z-index: 100 !important;
+  flex-shrink: 0 !important;
+  overflow: hidden !important;
+}
+
+.nav-items-scroll {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 4px 0 !important;
+  scrollbar-width: thin !important;
+}
+.nav-items-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+.nav-items-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.dash-nav-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 0 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-muted) !important;
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  text-decoration: none !important;
+}
+
+.dash-nav-btn .icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  max-width: 14px !important;
+  max-height: 14px !important;
+  flex-shrink: 0 !important;
+}
+
+.dash-nav-btn .icon svg {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  max-width: 14px !important;
+  max-height: 14px !important;
+  display: block !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  fill: none !important;
+}
+
+.dash-nav-btn .nav-text {
+  font-size: 12px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.dash-nav-btn:hover:not(.disabled):not(.active) {
+  background: var(--blue-light) !important;
+  color: var(--blue) !important;
+  border-color: var(--blue-border) !important;
+}
+
+.dash-nav-btn.active {
+  background: var(--blue) !important;
+  color: #ffffff !important;
+  border-color: var(--blue-dark) !important;
+  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.25) !important;
+}
+.dash-nav-btn.active .icon svg {
+  stroke: #ffffff !important;
+}
+
+.dash-nav-btn.disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  background: transparent !important;
+  border-color: var(--border-light) !important;
+}
+
+
+
+/* ==========================================================================
+   Dashboard Views Container
+   ========================================================================== */
+.dashboard-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+.dashboard-view:not(.active) {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Fee Due Dashboard Styling
+   ========================================================================== */
+.fee-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1200px) {
+  .fee-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.fee-kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: var(--shadow-xs);
+
+  border-top-width: 3px;
+}
+
+.fee-kpi-card.blue-theme   { border-top-color: var(--blue); }
+.fee-kpi-card.green-theme  { border-top-color: var(--green); }
+.fee-kpi-card.red-theme    { border-top-color: var(--red); }
+.fee-kpi-card.purple-theme { border-top-color: var(--purple); }
+.fee-kpi-card.orange-theme { border-top-color: var(--orange); }
+.fee-kpi-card.amber-theme  { border-top-color: var(--amber); }
+
+.fee-kpi-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.fee-kpi-header .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.fee-kpi-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 6px 0;
+}
+
+.fee-kpi-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.fee-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.fee-badge.badge-good {
+  background: var(--green-light);
+  color: var(--green-dark);
+  border: 1px solid var(--green-border);
+}
+.fee-badge.badge-warn {
+  background: var(--red-light);
+  color: var(--red-dark);
+  border: 1px solid var(--red-border);
+}
+
+.fee-charts-grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1200px) {
+  .fee-charts-grid-3col { grid-template-columns: 1fr; }
+}
+
+.chart-container-fee {
+  position: relative;
+  height: 220px;
+  width: 100%;
+  padding-top: 10px;
+}
+.ring-relative {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fee-donut-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -45%);
+  text-align: center;
+  pointer-events: none;
+}
+.fee-donut-center .mini-label { font-size: 11px; color: var(--text-muted); }
+.fee-donut-center .mini-value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+
+/* Key Insights Panel */
+.insights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+.insight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-light);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+}
+.insight-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.insight-icon svg { width: 18px; height: 18px; stroke-width: 2; }
+.insight-icon.down { color: var(--green); }
+.insight-icon.up { color: var(--red); }
+.insight-icon.warning { color: var(--amber); }
+.insight-icon.info { color: var(--blue); }
+.insight-icon.alert { color: var(--red); }
+
+.insight-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* Breakdown Table Panel with Sub-Tabs */
+.fee-breakdown-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-header-subtabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 12px;
+}
+.panel-header-subtabs h2 { margin: 0; }
+
+.fee-subtabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-muted);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+.fee-subtab-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.fee-subtab-btn:hover {
+  color: var(--text-primary);
+}
+.fee-subtab-btn.active {
+  background: var(--surface);
+  color: var(--blue);
+  box-shadow: var(--shadow-xs);
+}
+
+.fee-table th, .fee-table td {
+  padding: 10px 14px;
+}
+.font-medium { font-weight: 600; }
+.text-blue { color: var(--blue); }
+
+/* Markdown Formatting for AI Assistant Panel */
+.ai-msg-bubble.markdown-body {
+  line-height: 1.5;
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+.ai-msg-bubble.markdown-body p {
+  margin-bottom: 8px;
+}
+.ai-msg-bubble.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.ai-msg-bubble.markdown-body h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 12px 0 6px 0;
+  color: var(--blue-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.ai-msg-bubble.markdown-body ul {
+  padding-left: 18px;
+  margin: 6px 0 10px 0;
+}
+.ai-msg-bubble.markdown-body li {
+  margin-bottom: 4px;
+}
+.ai-msg-bubble.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 11.5px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ai-msg-bubble.markdown-body th, 
+.ai-msg-bubble.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: left;
+}
+.ai-msg-bubble.markdown-body th {
+  background: var(--surface-muted);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+

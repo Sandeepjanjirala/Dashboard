@@ -202,6 +202,18 @@ class AnalyticalIntentTests(TestCase):
         r = _extract("Which branches improved their dropout percentage compared with last year?")
         self.assertEqual(r.intent, "dashboard_query")
 
+    def test_ri_statistics(self):
+        r = _extract("RI Ramana statistics")
+        self.assertIn(r.intent, ("dashboard_query", "dashboard_filter_and_query"))
+
+    def test_agm_statistics(self):
+        r = _extract("AGM Suresh statistics")
+        self.assertIn(r.intent, ("dashboard_query", "dashboard_filter_and_query"))
+
+    def test_branch_statistics(self):
+        r = _extract("KAKINADA 1 statistics")
+        self.assertIn(r.intent, ("dashboard_query", "dashboard_filter_and_query"))
+
     def test_unsupported_metric(self):
         r = _extract("Show me employee happiness score")
         # No entity match and not a known analytical pattern → unknown
@@ -258,3 +270,20 @@ class VoicePathTests(TestCase):
         r = _extract("show anakapalli")
         self.assertEqual(r.intent, "dashboard_filter")
         self.assertIn("ANAKAPALLI", r.filters.get("branches", []))
+
+    def test_domain_dropout_statistics_phrases(self):
+        r1 = _extract("RI Ramana Dropouts statistics")
+        self.assertIn(r1.intent, ("dashboard_query", "dashboard_filter_and_query"))
+        self.assertIn("Ramana", r1.filters.get("ri", ""))
+
+        r2 = _extract("AGM Suresh Dropouts statistics")
+        self.assertIn(r2.intent, ("dashboard_query", "dashboard_filter_and_query"))
+        self.assertIn("Suresh", r2.filters.get("agm", ""))
+
+        r3 = _extract("Zone Kakinada Dropouts statistics")
+        self.assertIn(r3.intent, ("dashboard_query", "dashboard_filter_and_query"))
+        self.assertEqual(r3.filters.get("zone"), "Kakinada")
+
+        r4 = _extract("Kakinada 1 Dropouts statistics")
+        self.assertIn(r4.intent, ("dashboard_query", "dashboard_filter_and_query"))
+        self.assertIn("KAKINADA 1", r4.filters.get("branches", []))

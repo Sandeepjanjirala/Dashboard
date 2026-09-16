@@ -140,6 +140,8 @@ MAILERS = {
 # service/view code, since everything downstream only calls
 # excel_service.get_dataframe()).
 EXCEL_DATA_PATH = BASE_DIR / 'data' / 'branch_analytics.xlsx'
+FEE_DUE_DATA_PATH = BASE_DIR / 'data' / 'fee due.xlsx'
+
 
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [

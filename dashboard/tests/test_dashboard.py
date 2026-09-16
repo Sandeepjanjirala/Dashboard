@@ -630,3 +630,31 @@ class AskAiIntentIntegrationTests(TestCase):
         body = resp.json()
         self.assertEqual(body.get("intent"), "unknown")
         self.assertFalse(body.get("success"))
+
+
+class RevenueSalaryDashboardAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_revenue_salary_endpoint_all_filters(self):
+        resp = self.client.get("/api/dashboard/revenue-vs-salary/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("kpis", data)
+        self.assertIn("segment_analysis", data)
+        self.assertIn("charts", data)
+        self.assertIn("branch_analysis", data)
+        self.assertIn("total_revenue", data["kpis"])
+        self.assertIn("total_salary", data["kpis"])
+        self.assertIn("net_surplus", data["kpis"])
+
+    def test_revenue_salary_endpoint_with_zone_filter(self):
+        df = excel_service.get_dataframe("revenue_vs_salary")
+        some_zone = df["Zone"].iloc[0]
+        resp = self.client.get("/api/dashboard/revenue-vs-salary/", {"zone": some_zone})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data["filters"]["zone"], some_zone)
+
