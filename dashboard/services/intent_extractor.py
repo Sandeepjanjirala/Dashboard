@@ -52,9 +52,12 @@ _FILTER_TRIGGER_PHRASES = (
 _ANALYTICAL_TRIGGER_PHRASES = (
     'statistics', 'statistic', 'stats', 'analyze', 'analysis', 'review', 'performance', 'health',
     'top', 'bottom', 'highest', 'lowest', 'best', 'worst', 'how many',
-    'which', 'what is', 'what are', 'compare', 'comparison', 'rank',
-    'ranking', 'average', 'total', 'sum', 'percentage', 'dropout',
+    'which', 'what is', 'what was', 'what are', 'how much', 'compare', 'comparison', 'rank',
+    'ranking', 'average', 'total', 'sum', 'balance', 'percentage', 'dropout',
     'dropout %', 'strength', 'ratio', 'staff', 'rooms', 'sections',
+    'fee', 'fees', 'fee due', 'zero paid', 'zero-paid', 'due count', 'books',
+    'revenue', 'salary', 'surplus', 'cost per student', 'fee average', 'employee count', 'employee salary', 'employee cost', 'total employees',
+    'school level', 'education level',
     'year over year', 'yoy', 'cy vs ly', 'trend', 'improved', 'declined',
     'increased', 'decreased', 'changed', 'threshold', 'above', 'below',
     'more than', 'less than', 'vs', 'versus', 'scorecard', 'overview',
@@ -67,8 +70,11 @@ _ANALYTICAL_TRIGGER_PHRASES = (
 _HYBRID_METRIC_WORDS = (
     'statistics', 'statistic', 'stats', 'analyze', 'analysis', 'review', 'performance', 'health',
     'dropout', 'strength', 'ratio', 'staff', 'rooms', 'sections',
+    'fee', 'fees', 'fee due', 'zero paid', 'zero-paid', 'due count', 'books', 'balance',
+    'revenue', 'salary', 'surplus', 'cost per student', 'fee average', 'employee count', 'employee salary', 'employee cost', 'total employees',
+    'school level', 'education level',
     'percentage', '%', 'scorecard', 'overview', 'snapshot', 'summary',
-    'report', 'details', 'breakdown', 'profile',
+    'report', 'details', 'breakdown', 'profile', 'how many', 'what is', 'what was', 'how much', 'total',
 )
 
 

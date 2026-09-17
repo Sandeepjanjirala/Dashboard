@@ -49,12 +49,12 @@ class FeeDueAPITests(TestCase):
         self.assertIn("kpis", response.data)
 
     def test_fee_due_dashboard_view_filtered(self):
-        # Filter by zone=Kakinada
-        request = self.factory.get("/api/dashboard/fee-due/?zone=Kakinada")
+        # Filter by zone=Kompally
+        request = self.factory.get("/api/dashboard/fee-due/?zone=Kompally")
         response = fee_due_dashboard_view(request)
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["success"])
-        self.assertEqual(response.data["filters"]["zone"], "Kakinada")
+        self.assertEqual(response.data["filters"]["zone"], "Kompally")
         self.assertGreater(response.data["row_count"], 0)
 
     def test_fee_due_filters_view_api(self):
@@ -63,4 +63,4 @@ class FeeDueAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["success"])
         self.assertIn("zones", response.data)
-        self.assertIn("Kakinada", response.data["zones"])
+        self.assertIn("Kompally", response.data["zones"])

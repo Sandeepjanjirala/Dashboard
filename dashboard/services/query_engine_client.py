@@ -72,3 +72,36 @@ def ask(question: str, filters: dict | None = None) -> dict:
     # body for both routing misses (400) and internal errors (500) -- that's
     # valid data to relay, not a transport failure, so we don't raise here.
     return body
+
+
+def transcribe(audio_file, content_type: str = "audio/webm") -> dict:
+    """
+    Forward audio recording to branch_query_engine_v2's /api/transcribe/ endpoint.
+    Uses local faster-whisper speech recognition.
+    """
+    url = settings.QUERY_ENGINE_BASE_URL.rstrip("/") + "/api/transcribe/"
+    filename = getattr(audio_file, "name", "recording.webm") or "recording.webm"
+    files = {"audio": (filename, audio_file, content_type or "audio/webm")}
+
+    try:
+        resp = requests.post(
+            url,
+            files=files,
+            timeout=settings.QUERY_ENGINE_TIMEOUT_SECONDS,
+        )
+    except requests.exceptions.Timeout as exc:
+        logger.warning("Query engine speech transcription timed out")
+        raise QueryEngineError("The speech transcription took too long. Please try again.") from exc
+    except requests.exceptions.ConnectionError as exc:
+        logger.warning("Query engine unreachable at %s: %s", url, exc)
+        raise QueryEngineError("The speech service is currently unavailable.") from exc
+    except requests.exceptions.RequestException as exc:
+        logger.exception("Unexpected error calling query engine transcribe")
+        raise QueryEngineError("Could not process voice recording.") from exc
+
+    try:
+        return resp.json()
+    except ValueError as exc:
+        logger.exception("Query engine returned non-JSON response from transcribe")
+        raise QueryEngineError("The speech service returned an unreadable response.") from exc
+

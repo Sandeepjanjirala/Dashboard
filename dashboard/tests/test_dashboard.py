@@ -534,46 +534,46 @@ class AskAiIntentIntegrationTests(TestCase):
     # FILTER intent — Zone
     # ------------------------------------------------------------------
 
-    def test_zone_filter_kakinada(self):
-        resp = self._post("Show me Zone Kakinada")
+    def test_zone_filter_kukatpally(self):
+        resp = self._post("Show me Zone Kukatpally")
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertTrue(body["success"])
         self.assertEqual(body["intent"], "dashboard_filter")
-        self.assertEqual(body["command"]["filters"]["zone"], "Kakinada")
+        self.assertEqual(body["command"]["filters"]["zone"], "Kukatpally")
         self.assertIsNone(body["data"])
 
-    def test_zone_filter_visakhapatnam(self):
-        resp = self._post("Filter to Visakhapatnam")
+    def test_zone_filter_ameerpet(self):
+        resp = self._post("Filter to Ameerpet")
         body = resp.json()
         self.assertEqual(body["intent"], "dashboard_filter")
-        self.assertEqual(body["command"]["filters"]["zone"], "Visakhapatnam")
+        self.assertEqual(body["command"]["filters"]["zone"], "Ameerpet")
 
     # ------------------------------------------------------------------
     # FILTER intent — Branch
     # ------------------------------------------------------------------
 
-    def test_branch_filter_anakapalli(self):
-        resp = self._post("Show ANAKAPALLI")
+    def test_branch_filter_medchal(self):
+        resp = self._post("Show MEDCHAL")
         body = resp.json()
         self.assertIn(body["intent"], ("dashboard_filter", "dashboard_filter_and_query"))
         branches = body["command"]["filters"]["branches"]
-        self.assertIn("ANAKAPALLI", branches)
+        self.assertIn("MEDCHAL", branches)
 
-    def test_branch_filter_draksharamam(self):
-        resp = self._post("Show me Draksharamam branch")
+    def test_branch_filter_suchitra(self):
+        resp = self._post("Show me Suchitra branch")
         body = resp.json()
         self.assertIn(body["intent"], ("dashboard_filter", "dashboard_filter_and_query"))
         branches = body["command"]["filters"]["branches"]
-        self.assertTrue(any("DRAKSHARAMAM" in b.upper() for b in branches))
+        self.assertTrue(any("SUCHITRA" in b.upper() for b in branches))
 
     # ------------------------------------------------------------------
     # CLARIFICATION intent
     # ------------------------------------------------------------------
 
     def test_ambiguous_branch_returns_clarification(self):
-        # "Kakinada" alone matches multiple branches (KAKINADA 1,2,3,4,6,7)
-        resp = self._post("Show Kakinada")
+        # "Kompally" alone matches multiple branches (Kompally, Kompally 2, Kompally 4, Kompally 5)
+        resp = self._post("Show Kompally")
         body = resp.json()
         self.assertIn(body["intent"], ("clarification_required", "dashboard_filter"))
         if body["intent"] == "clarification_required":
@@ -615,7 +615,7 @@ class AskAiIntentIntegrationTests(TestCase):
         self.assertIsInstance(body["answer"], str)
 
     def test_filter_response_has_success_true(self):
-        resp = self._post("Show me Zone Kakinada")
+        resp = self._post("Show me Zone Kukatpally")
         body = resp.json()
         self.assertTrue(body.get("success"))
 
@@ -657,4 +657,34 @@ class RevenueSalaryDashboardAPITests(TestCase):
         data = resp.json()
         self.assertTrue(data.get("success"))
         self.assertEqual(data["filters"]["zone"], some_zone)
+
+
+from unittest.mock import patch
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+
+class TranscribeAudioProxyTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_transcribe_endpoint_no_audio(self):
+        resp = self.client.post("/api/dashboard/transcribe/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(resp.json()["success"])
+
+    @patch("dashboard.services.query_engine_client.transcribe")
+    def test_transcribe_endpoint_success(self, mock_transcribe):
+        mock_transcribe.return_value = {
+            "success": True,
+            "text": "What is the dropout percentage of Kompally?",
+            "raw_text": "what is the dropout percentage of kompally",
+            "duration": 2.5,
+        }
+        audio_file = SimpleUploadedFile("test.webm", b"audio_bytes_123", content_type="audio/webm")
+        resp = self.client.post("/api/dashboard/transcribe/", {"audio": audio_file}, format="multipart")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["text"], "What is the dropout percentage of Kompally?")
+
 

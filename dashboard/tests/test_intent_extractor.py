@@ -15,7 +15,7 @@ from dashboard.services.intent_extractor import extract_intent
 # ---------------------------------------------------------------------------
 # Fixture entity lists (representative subset of the real dataset)
 # ---------------------------------------------------------------------------
-AGMS = ["Mr.M.V.Suresh"]
+AGMS = ["Mr.M.V.Suresh", "Mr.G.V.Ramana Rao"]
 RIS = [
     "Mr M.V.L.Naresh", "Mr.Ahmedali", "Mr.M.Ramana", "Mr.P Gopi Nath",
     "Mr.P.Srinivas Rao", "Mr.PSSSV Prasad", "Mr.S.Raminaidu",
@@ -240,6 +240,21 @@ class HybridIntentTests(TestCase):
         r = _extract("Show DRAKSHARAMAM scorecard")
         self.assertEqual(r.intent, "dashboard_filter_and_query")
         self.assertIn("DRAKSHARAMAM", r.filters.get("branches", []))
+
+    def test_fee_due_under_agm_hybrid(self):
+        r = _extract("What is the current year fee due under AGM Ramana Rao?")
+        self.assertEqual(r.intent, "dashboard_filter_and_query")
+        self.assertEqual(r.filters.get("agm"), "Mr.G.V.Ramana Rao")
+
+    def test_school_level_under_agm_hybrid(self):
+        r = _extract("Which school level has the highest dropout percentage under AGM Ramana Rao?")
+        self.assertEqual(r.intent, "dashboard_filter_and_query")
+        self.assertEqual(r.filters.get("agm"), "Mr.G.V.Ramana Rao")
+
+    def test_zero_paid_fee_due_balance_under_agm_hybrid(self):
+        r = _extract("What is the zero-paid fee due balance under AGM Ramana Rao?")
+        self.assertEqual(r.intent, "dashboard_filter_and_query")
+        self.assertEqual(r.filters.get("agm"), "Mr.G.V.Ramana Rao")
 
 
 # ---------------------------------------------------------------------------

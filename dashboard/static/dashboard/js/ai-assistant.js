@@ -75,6 +75,7 @@ function sendQuestion(question) {
   question = (question || "").trim();
   if (!question) return;
 
+  $("#ai-question-input").val("").blur();
   appendUserMessage(question);
   setSending(true);
 
@@ -521,117 +522,270 @@ function scrollToMessageStart($elem) {
 function initVoiceInput() {
   const $micBtn = $("#ai-mic-btn");
   const $input = $("#ai-question-input");
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  if (!SpeechRecognitionCtor) {
-    $micBtn.prop("disabled", true).attr("title", "Voice input is not supported in this browser");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    $micBtn.prop("disabled", true).attr("title", "Voice recording is not supported in this browser");
     setVoiceStatus("Voice input is not supported in this browser.");
     return;
   }
 
-  const recognition = new SpeechRecognitionCtor();
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
+  let audioStream = null;
+  let audioContext = null;
+  let analyserNode = null;
+  let vadIntervalId = null;
 
-  let isListening = false;
-  let finalTranscript = "";
+  const SILENCE_DURATION_MS = 2000;
+  const INITIAL_NO_SPEECH_TIMEOUT_MS = 10000;
+  const MAX_RECORDING_DURATION_MS = 35000;
+  const SPEECH_START_THRESHOLD = 3;
 
-  recognition.onstart = function () {
-    isListening = true;
-    finalTranscript = "";
-    $micBtn.addClass("ai-mic-listening");
-    setVoiceStatus("Listening...");
-  };
+  function cleanupRecording() {
+    stopVoiceActivityMonitoring();
+    $micBtn.css("transform", "");
+    if (audioStream) {
+      audioStream.getTracks().forEach((track) => track.stop());
+      audioStream = null;
+    }
+    if (audioContext && audioContext.state !== "closed") {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+    }
+    analyserNode = null;
+    mediaRecorder = null;
+  }
 
-  recognition.onresult = function (event) {
-    let interim = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalTranscript += transcript;
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      try {
+        mediaRecorder.stop();
+      } catch (e) {
+        cleanupRecording();
+      }
+    } else {
+      cleanupRecording();
+    }
+  }
+
+  function abortRecordingNoSpeech() {
+    // If any audio chunks were already recorded, never throw them away -- transcribe them!
+    if (audioChunks.length > 0) {
+      stopRecording();
+      return;
+    }
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      audioChunks = [];
+      try {
+        mediaRecorder.ondataavailable = null;
+        mediaRecorder.onstop = null;
+        mediaRecorder.stop();
+      } catch (e) {}
+    }
+    cleanupRecording();
+    $micBtn.removeClass("ai-mic-listening").css("transform", "");
+    isRecording = false;
+    setVoiceStatus("No speech detected. Please try again.", true);
+  }
+
+  function startVoiceActivityMonitoring() {
+    if (!analyserNode) return;
+
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const recordingStartTime = Date.now();
+    let hasSpeechStarted = false;
+    let lastSpeechTime = 0;
+
+    if (vadIntervalId) clearInterval(vadIntervalId);
+
+    vadIntervalId = setInterval(() => {
+      if (!isRecording || !analyserNode) {
+        stopVoiceActivityMonitoring();
+        return;
+      }
+
+      analyserNode.getByteFrequencyData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      const currentVolume = sum / bufferLength;
+      const now = Date.now();
+
+      // Live volume feedback: subtly pulse button size with voice volume
+      if (currentVolume >= 2) {
+        $micBtn.css("transform", `scale(${Math.min(1.22, 1 + currentVolume / 60)})`);
       } else {
-        interim += transcript;
+        $micBtn.css("transform", "");
+      }
+
+      if (currentVolume >= SPEECH_START_THRESHOLD) {
+        hasSpeechStarted = true;
+        lastSpeechTime = now;
+      }
+
+      if (hasSpeechStarted) {
+        const silenceDuration = now - lastSpeechTime;
+        if (silenceDuration >= SILENCE_DURATION_MS) {
+          stopVoiceActivityMonitoring();
+          stopRecording();
+          return;
+        }
+      } else {
+        if (now - recordingStartTime >= INITIAL_NO_SPEECH_TIMEOUT_MS) {
+          stopVoiceActivityMonitoring();
+          abortRecordingNoSpeech();
+          return;
+        }
+      }
+
+      if (now - recordingStartTime >= MAX_RECORDING_DURATION_MS) {
+        stopVoiceActivityMonitoring();
+        stopRecording();
+      }
+    }, 50);
+  }
+
+  function stopVoiceActivityMonitoring() {
+    if (vadIntervalId) {
+      clearInterval(vadIntervalId);
+      vadIntervalId = null;
+    }
+  }
+
+  async function startRecording() {
+    try {
+      setVoiceStatus("");
+      audioChunks = [];
+
+      audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const AudioCtxCtor = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioCtxCtor();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      const source = audioContext.createMediaStreamSource(audioStream);
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 512;
+      analyserNode.smoothingTimeConstant = 0.2;
+      source.connect(analyserNode);
+
+      let options = {};
+      const mimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/mp4",
+        "audio/wav",
+      ];
+      for (const mt of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mt)) {
+          options = { mimeType: mt };
+          break;
+        }
+      }
+
+      mediaRecorder = new MediaRecorder(audioStream, options);
+
+      mediaRecorder.ondataavailable = function (event) {
+        if (event.data && event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstart = function () {
+        isRecording = true;
+        $micBtn.addClass("ai-mic-listening");
+        setVoiceStatus("Listening...");
+        startVoiceActivityMonitoring();
+      };
+
+      mediaRecorder.onerror = function (event) {
+        cleanupRecording();
+        $micBtn.removeClass("ai-mic-listening").css("transform", "");
+        isRecording = false;
+        setVoiceStatus("Microphone recording error. Please try again.", true);
+      };
+
+      mediaRecorder.onstop = async function () {
+        $micBtn.removeClass("ai-mic-listening").css("transform", "");
+        isRecording = false;
+        stopVoiceActivityMonitoring();
+
+        if (audioChunks.length === 0) {
+          cleanupRecording();
+          setVoiceStatus("No speech detected. Please try again.", true);
+          return;
+        }
+
+        const actualMime = mediaRecorder.mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunks, { type: actualMime });
+        cleanupRecording();
+
+        let ext = "webm";
+        if (actualMime.includes("wav")) ext = "wav";
+        else if (actualMime.includes("mp4")) ext = "mp4";
+        else if (actualMime.includes("ogg")) ext = "ogg";
+
+        setVoiceStatus("Transcribing audio...");
+
+        const formData = new FormData();
+        formData.append("audio", audioBlob, `recording.${ext}`);
+
+        try {
+          const response = await fetch("/api/dashboard/transcribe/", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          if (data.success && data.text) {
+            setVoiceStatus("");
+            $input.val("");
+            sendQuestion(data.text);
+          } else {
+            setVoiceStatus(data.error || "Could not understand the audio. Please try again.", true);
+          }
+        } catch (err) {
+          setVoiceStatus("Could not understand the audio. Please try again.", true);
+        }
+      };
+
+      mediaRecorder.start(100);
+    } catch (err) {
+      cleanupRecording();
+      $micBtn.removeClass("ai-mic-listening");
+      isRecording = false;
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setVoiceStatus("Microphone permission was denied. You can still type your question.", true);
+      } else {
+        setVoiceStatus("Microphone is unavailable or not detected.", true);
       }
     }
-    $input.val((finalTranscript + interim).trim());
-  };
-
-  recognition.onerror = function (event) {
-    let message = "Voice input error. Please try again or type your question.";
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-      message = "Microphone permission was denied. You can still type your question.";
-    } else if (event.error === "no-speech") {
-      message = "No speech detected. Please try again.";
-    } else if (event.error === "network") {
-      message = "Network error during voice recognition. Please try again.";
-    }
-    setVoiceStatus(message, true);
-  };
-
-  recognition.onend = function () {
-    isListening = false;
-    $micBtn.removeClass("ai-mic-listening");
-
-    const question = finalTranscript.trim();
-    finalTranscript = "";
-
-    if (!question) {
-      return;
-    }
-
-    $input.val(question);
-
-    const selectedLang = $("#ai-lang-select").val() || "en-IN";
-    if (selectedLang === "te-IN") {
-      setVoiceStatus("Translating...");
-      translateToEnglish(question)
-        .then(function (english) {
-          const finalQuestion = (english || "").trim() || question;
-          $input.val(finalQuestion);
-          setVoiceStatus("");
-          sendQuestion(finalQuestion);
-        })
-        .catch(function () {
-          setVoiceStatus("Translation unavailable, sending as recognized.", true);
-          sendQuestion(question);
-        });
-    } else {
-      $input.val("");
-      setVoiceStatus("");
-      sendQuestion(question);
-    }
-  };
+  }
 
   $micBtn.on("click", function () {
-    if (isListening) {
-      recognition.stop();
-      return;
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
-    setVoiceStatus("");
-    recognition.lang = $("#ai-lang-select").val() || "en-IN";
-    try {
-      recognition.start();
-    } catch (err) {}
   });
 }
 
 function setVoiceStatus(message, isError) {
   const $status = $("#ai-voice-status");
   $status.text(message || "").toggleClass("ai-voice-error", !!isError);
-}
-
-function translateToEnglish(text) {
-  return $.ajax({
-    url: "https://api.mymemory.translated.net/get",
-    method: "GET",
-    dataType: "json",
-    data: { q: text, langpair: "te|en" },
-    timeout: 8000,
-  }).then(function (resp) {
-    const translated = resp && resp.responseData && resp.responseData.translatedText;
-    if (!translated) {
-      throw new Error("No translation returned");
-    }
-    return translated;
-  });
 }

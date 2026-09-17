@@ -325,3 +325,40 @@ def ask_ai_view(request):
         "intent": intent_label,
         "command": filter_cmd,
     }, status=http_status)
+
+
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.decorators import parser_classes
+
+
+@api_view(["POST"])
+@parser_classes([MultiPartParser, FormParser])
+def transcribe_view(request):
+    """
+    POST /api/dashboard/transcribe/
+    Proxies audio recording to the query engine's local faster-whisper service.
+    """
+    audio_file = request.FILES.get("audio") or request.FILES.get("file")
+    if not audio_file:
+        return Response(
+            {"success": False, "error": "No audio file provided. Please try speaking again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if audio_file.size == 0:
+        return Response(
+            {"success": False, "error": "Audio recording is empty. Please try speaking again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    content_type = getattr(audio_file, "content_type", "") or "audio/webm"
+
+    try:
+        res = query_engine_client.transcribe(audio_file, content_type=content_type)
+        return Response(res)
+    except query_engine_client.QueryEngineError as exc:
+        return Response(
+            {"success": False, "error": str(exc)},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
